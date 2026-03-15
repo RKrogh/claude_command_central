@@ -8,4 +8,5 @@ public interface IOrchestrator
     Task HandleStopAsync(HookPayload payload, CancellationToken ct = default);
     Task HandleNotificationAsync(HookPayload payload, CancellationToken ct = default);
     Task HandlePromptSubmitAsync(HookPayload payload, CancellationToken ct = default);
+    Task HandleSessionEndAsync(HookPayload payload, CancellationToken ct = default);
 }

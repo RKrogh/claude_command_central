@@ -91,4 +91,26 @@ public sealed class Orchestrator(
 
         return Task.CompletedTask;
     }
+
+    public Task HandleSessionEndAsync(HookPayload payload, CancellationToken ct = default)
+    {
+        if (payload.SessionId is null) return Task.CompletedTask;
+
+        var instance = registry.GetBySessionId(payload.SessionId);
+        if (instance is null)
+        {
+            logger.LogDebug("SessionEnd for unknown session {SessionId}", payload.SessionId);
+            return Task.CompletedTask;
+        }
+
+        var id = instance.Id;
+        registry.Unregister(payload.SessionId);
+
+        eventBus.Publish(new InstanceEvent(
+            InstanceEventType.ActivityLogged, id,
+            Message: "Session ended"));
+
+        logger.LogInformation("Instance {Id} deregistered (session {SessionId} ended)", id, payload.SessionId);
+        return Task.CompletedTask;
+    }
 }

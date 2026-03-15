@@ -11,9 +11,11 @@ using VoiceToText.Audio.NAudio;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Bind Kestrel to configured port
+// Bind Kestrel to configured host/port
+// Uses 0.0.0.0 by default so WSL2 can reach the daemon across the virtual network
+var host = builder.Configuration.GetValue("CommandCentral:Server:Host", "0.0.0.0");
 var port = builder.Configuration.GetValue("CommandCentral:Server:Port", 9000);
-builder.WebHost.UseUrls($"http://localhost:{port}");
+builder.WebHost.UseUrls($"http://{host}:{port}");
 
 builder.Services.Configure<CommandCentralOptions>(
     builder.Configuration.GetSection("CommandCentral"));

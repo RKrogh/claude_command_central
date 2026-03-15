@@ -28,6 +28,10 @@
 - **Inter-instance routing**: "Tell instance 2 to run the tests" — manager relays commands
 - **Webhook forwarding**: Forward specific hook events to external services (Slack, Discord)
 
+## Security
+- **API key / shared secret**: Hook requests include an `Authorization` header with a shared secret. Daemon rejects requests without it. Secret auto-generated on first run, stored in appsettings, and injected into hook curl commands by the install script. Prevents rogue processes from sending fake hooks even on localhost.
+- **Rate limiting**: Throttle hook endpoints to prevent abuse (e.g. max 10 requests/second per session)
+
 ## Technical
 - **WASM STT**: Run Whisper in browser-based UI instead of native
 - **GPU acceleration**: Use CUDA/DirectML for faster Whisper inference

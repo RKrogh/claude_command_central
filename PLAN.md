@@ -407,11 +407,27 @@ claude_command_central/
 ## 7. Key Technical Challenges
 
 ### WSL2 ↔ Windows Networking
-WSL2 uses a virtual network. `localhost` from WSL may not reach Windows host directly.
-Solutions:
-- Use `$(cat /etc/resolv.conf | grep nameserver | awk '{print $2}')` to get Windows host IP
-- Or configure WSL2 mirrored networking mode (Windows 11 22H2+)
-- Hook commands need to use the correct IP
+WSL2 runs in a lightweight VM with its own virtual network. `localhost` from WSL does
+not reach Windows `localhost` by default — they are different network stacks.
+
+**Recommended: WSL2 mirrored networking** (Windows 11 22H2+)
+Collapses WSL2 and Windows into one network stack. `localhost` from WSL hits Windows
+`localhost` directly. No port exposure, no firewall rules, daemon stays bound to `localhost`.
+
+To enable, create/edit `C:\Users\<user>\.wslconfig`:
+```ini
+[wsl2]
+networkingMode=mirrored
+```
+Then `wsl --shutdown` and reopen WSL.
+
+**Fallback: bind to 0.0.0.0**
+If mirrored networking is not available, bind daemon to `0.0.0.0` so WSL2 can reach it
+via the Windows host IP. This exposes the port on all interfaces — use with caution on
+shared networks. An API key/shared secret on hook requests is recommended in this case.
+
+Hook commands use `localhost:9000` with mirrored networking, or the Windows host IP
+(`$(cat /etc/resolv.conf | grep nameserver | awk '{print $2}')`) without it.
 
 ### Terminal Window Identification
 Need to match a Claude Code session to a specific terminal window.

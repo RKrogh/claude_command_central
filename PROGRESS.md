@@ -25,9 +25,9 @@
 - [x] DaemonService (IHostedService)
 - [x] Full DI wiring with headless mode for tests
 - [x] 40 tests passing (Core + Integration + HTTP endpoints)
-- [ ] Verify WSL2 → Windows localhost connectivity
+- [x] Verify WSL2 → Windows localhost connectivity (mirrored networking via .wslconfig)
 - [ ] End-to-end manual test: speak → text in Claude Code prompt
-- [ ] Hook installation script
+- [x] Hook installation script (install/uninstall/check, preserves existing settings)
 
 ### Phase 2: Multi-Instance + TTS
 - [x] Multi-instance registry with auto-numbering (done in Phase 1)

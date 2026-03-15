@@ -32,5 +32,11 @@ public static class HookEndpoints
             await orchestrator.HandlePromptSubmitAsync(payload);
             return Results.Ok();
         });
+
+        hooks.MapPost("/session-end", async (HookPayload payload, IOrchestrator orchestrator) =>
+        {
+            await orchestrator.HandleSessionEndAsync(payload);
+            return Results.Ok();
+        });
     }
 }
