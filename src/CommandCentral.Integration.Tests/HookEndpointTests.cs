@@ -11,7 +11,10 @@ public class HookEndpointTests : IClassFixture<WebApplicationFactory<Program>>
 
     public HookEndpointTests(WebApplicationFactory<Program> factory)
     {
-        _client = factory.CreateClient();
+        _client = factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseSetting("COMMANDCENTRAL_HEADLESS_ONLY", "true");
+        }).CreateClient();
     }
 
     [Fact]

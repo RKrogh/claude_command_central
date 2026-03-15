@@ -7,14 +7,15 @@ public enum DaemonEventType
     SttResult,
     TtsStarted,
     TtsStopped,
-    SelectedInstanceChanged
+    SelectedInstanceChanged,
 }
 
 public sealed record DaemonEvent(
     DaemonEventType Type,
     string? InstanceId = null,
     string? Message = null,
-    DateTime? Timestamp = null)
+    DateTime? Timestamp = null
+)
 {
     public DateTime EffectiveTimestamp => Timestamp ?? DateTime.UtcNow;
 }
