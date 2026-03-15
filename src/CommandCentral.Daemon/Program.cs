@@ -11,6 +11,10 @@ using VoiceToText.Audio.NAudio;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Bind Kestrel to configured port
+var port = builder.Configuration.GetValue("CommandCentral:Server:Port", 9000);
+builder.WebHost.UseUrls($"http://localhost:{port}");
+
 builder.Services.Configure<CommandCentralOptions>(
     builder.Configuration.GetSection("CommandCentral"));
 
@@ -69,7 +73,6 @@ app.MapApiEndpoints();
 app.MapGet("/health", () => Results.Ok(new { Status = "running", Timestamp = DateTime.UtcNow }));
 
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
-var port = app.Configuration.GetValue("CommandCentral:Server:Port", 9000);
 logger.LogInformation("Command Central daemon starting on http://localhost:{Port}", port);
 
 app.Run();

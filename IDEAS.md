@@ -15,6 +15,7 @@
 - **Health monitoring**: Detect crashed/hung instances, alert user
 
 ## UI & UX
+- **Terminal theme inheritance**: TUI should use the user's terminal font/colors rather than Terminal.Gui defaults. Consider upgrading to Terminal.Gui v2 for better theme support, or implement a theme system that reads from terminal capabilities.
 - **Overlay widget**: Small floating window showing instance states, active PTT, etc.
 - **LED strip integration**: Physical LEDs per instance (USB LED strip) — green=idle, red=busy, blue=speaking
 - **Stream Deck integration**: Physical buttons for PTT per instance

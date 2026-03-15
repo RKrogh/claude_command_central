@@ -9,7 +9,7 @@ namespace CommandCentral.Input;
 
 public sealed class HotkeyManager : IDisposable
 {
-    private readonly SimpleGlobalHook _hook;
+    private readonly TaskPoolGlobalHook _hook;
     private readonly PushToTalkHandler _pttHandler;
     private readonly IInstanceRegistry _registry;
     private readonly ILogger<HotkeyManager> _logger;
@@ -26,7 +26,7 @@ public sealed class HotkeyManager : IDisposable
         _registry = registry;
         _logger = logger;
 
-        _hook = new SimpleGlobalHook();
+        _hook = new TaskPoolGlobalHook();
         _hook.KeyPressed += OnKeyPressed;
         _hook.KeyReleased += OnKeyReleased;
     }
@@ -39,8 +39,16 @@ public sealed class HotkeyManager : IDisposable
 
     public void Stop()
     {
-        _hook.Dispose();
-        _logger.LogInformation("Hotkey manager stopped");
+        try
+        {
+            if (_hook.IsRunning)
+                _hook.Stop();
+            _logger.LogInformation("Hotkey manager stopped");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error stopping hotkey manager");
+        }
     }
 
     private void OnKeyPressed(object? sender, KeyboardHookEventArgs e)
@@ -56,7 +64,6 @@ public sealed class HotkeyManager : IDisposable
                 _pttActive = true;
                 _pttTargetInstance = instanceId;
                 _ = _pttHandler.StartAsync(instanceId);
-                e.SuppressEvent = true;
                 return;
             }
         }
@@ -65,9 +72,8 @@ public sealed class HotkeyManager : IDisposable
         if (mask.HasCtrl() && e.Data.KeyCode == KeyCode.VcSpace && !_pttActive)
         {
             _pttActive = true;
-            _pttTargetInstance = null; // use selected
+            _pttTargetInstance = null;
             _ = _pttHandler.StartAsync();
-            e.SuppressEvent = true;
             return;
         }
 
@@ -75,7 +81,6 @@ public sealed class HotkeyManager : IDisposable
         if (mask.HasCtrl() && e.Data.KeyCode == KeyCode.VcBackQuote)
         {
             CycleSelectedInstance();
-            e.SuppressEvent = true;
         }
     }
 
@@ -92,7 +97,6 @@ public sealed class HotkeyManager : IDisposable
             _pttActive = false;
             _pttTargetInstance = null;
             _ = _pttHandler.StopAsync();
-            e.SuppressEvent = true;
         }
     }
 
@@ -126,6 +130,8 @@ public sealed class HotkeyManager : IDisposable
 
     public void Dispose()
     {
-        _hook.Dispose();
+        Stop();
+        if (!_hook.IsDisposed)
+            _hook.Dispose();
     }
 }
