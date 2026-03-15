@@ -139,6 +139,51 @@ public class OrchestratorTests
     }
 
     [Fact]
+    public async Task HandleSessionEnd_UnregistersInstance()
+    {
+        await _orchestrator.HandleSessionStartAsync(new HookPayload { SessionId = "abc-123", Cwd = "/proj" });
+        Assert.Single(_registry.GetAll());
+
+        await _orchestrator.HandleSessionEndAsync(new HookPayload { SessionId = "abc-123" });
+
+        Assert.Empty(_registry.GetAll());
+        Assert.Null(_registry.GetBySessionId("abc-123"));
+    }
+
+    [Fact]
+    public async Task HandleSessionEnd_PublishesEvent()
+    {
+        await _orchestrator.HandleSessionStartAsync(new HookPayload { SessionId = "abc-123" });
+
+        var events = new List<InstanceEvent>();
+        _eventBus.SubscribeInstances(e => events.Add(e));
+
+        await _orchestrator.HandleSessionEndAsync(new HookPayload { SessionId = "abc-123" });
+
+        Assert.Contains(events, e =>
+            e.Type == InstanceEventType.ActivityLogged &&
+            e.Message == "Session ended");
+    }
+
+    [Fact]
+    public async Task HandleSessionEnd_IgnoresUnknownSession()
+    {
+        var exception = await Record.ExceptionAsync(() =>
+            _orchestrator.HandleSessionEndAsync(new HookPayload { SessionId = "unknown" }));
+
+        Assert.Null(exception);
+    }
+
+    [Fact]
+    public async Task HandleSessionEnd_IgnoresNullSessionId()
+    {
+        var exception = await Record.ExceptionAsync(() =>
+            _orchestrator.HandleSessionEndAsync(new HookPayload { SessionId = null }));
+
+        Assert.Null(exception);
+    }
+
+    [Fact]
     public async Task FullLifecycle_SessionStartPromptStopNotification()
     {
         // Start
@@ -156,5 +201,10 @@ public class OrchestratorTests
         // Goes idle
         await _orchestrator.HandleNotificationAsync(new HookPayload { SessionId = "s1" });
         Assert.Equal(InstanceState.Idle, _registry.GetBySessionId("s1")!.State);
+
+        // Session ends
+        await _orchestrator.HandleSessionEndAsync(new HookPayload { SessionId = "s1" });
+        Assert.Null(_registry.GetBySessionId("s1"));
+        Assert.Empty(_registry.GetAll());
     }
 }

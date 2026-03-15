@@ -3,7 +3,7 @@ using CommandCentral.Core.Models;
 
 namespace CommandCentral.Core.Services;
 
-public sealed class InMemoryInstanceRegistry(IEventBus eventBus, int maxInstances = 9) : IInstanceRegistry
+public sealed class InMemoryInstanceRegistry(IEventBus eventBus, int maxInstances = 25) : IInstanceRegistry
 {
     private readonly ConcurrentDictionary<string, InstanceInfo> _bySessionId = new();
     private readonly ConcurrentDictionary<string, InstanceInfo> _byId = new();

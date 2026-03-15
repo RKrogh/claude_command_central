@@ -13,8 +13,16 @@ public sealed class HotkeyManager : IDisposable
     private readonly PushToTalkHandler _pttHandler;
     private readonly IInstanceRegistry _registry;
     private readonly ILogger<HotkeyManager> _logger;
+
+    // Parsed bindings: combo → instance ID
+    private readonly Dictionary<KeyCombo, string> _pttBindings = [];
+    private readonly KeyCombo _pttSelectedCombo;
+    private readonly KeyCombo _cycleCombo;
+
     private bool _pttActive;
     private string? _pttTargetInstance;
+    // Track which key started PTT so we release on the correct key
+    private KeyCode _pttKeyCode;
 
     public HotkeyManager(
         PushToTalkHandler pttHandler,
@@ -26,6 +34,25 @@ public sealed class HotkeyManager : IDisposable
         _registry = registry;
         _logger = logger;
 
+        var hotkeys = options.Value.Hotkeys;
+
+        // Parse PTT bindings from config
+        foreach (var (comboStr, instanceId) in hotkeys.PttBindings)
+        {
+            if (KeyCombo.TryParse(comboStr, out var combo))
+            {
+                _pttBindings[combo] = instanceId;
+                _logger.LogDebug("PTT binding: {Combo} → instance {Id}", comboStr, instanceId);
+            }
+            else
+            {
+                _logger.LogWarning("Invalid PTT binding key combo: {Combo}", comboStr);
+            }
+        }
+
+        _pttSelectedCombo = KeyCombo.Parse(hotkeys.PttSelectedInstance);
+        _cycleCombo = KeyCombo.Parse(hotkeys.CycleInstance);
+
         _hook = new TaskPoolGlobalHook();
         _hook.KeyPressed += OnKeyPressed;
         _hook.KeyReleased += OnKeyReleased;
@@ -33,7 +60,7 @@ public sealed class HotkeyManager : IDisposable
 
     public Task StartAsync(CancellationToken ct = default)
     {
-        _logger.LogInformation("Hotkey manager starting");
+        _logger.LogInformation("Hotkey manager starting ({Count} PTT bindings)", _pttBindings.Count);
         return _hook.RunAsync();
     }
 
@@ -55,30 +82,34 @@ public sealed class HotkeyManager : IDisposable
     {
         var mask = e.RawEvent.Mask;
 
-        // Ctrl+1 through Ctrl+9: PTT for specific instance
-        if (mask.HasCtrl() && !_pttActive)
+        if (!_pttActive)
         {
-            var instanceId = GetInstanceIdFromKey(e.Data.KeyCode);
-            if (instanceId is not null)
+            // Check configured PTT bindings (e.g. Ctrl+1 → instance "1")
+            foreach (var (combo, instanceId) in _pttBindings)
+            {
+                if (combo.Matches(mask, e.Data.KeyCode))
+                {
+                    _pttActive = true;
+                    _pttTargetInstance = instanceId;
+                    _pttKeyCode = e.Data.KeyCode;
+                    _ = _pttHandler.StartAsync(instanceId);
+                    return;
+                }
+            }
+
+            // PTT for selected instance (e.g. Ctrl+Space)
+            if (_pttSelectedCombo.Matches(mask, e.Data.KeyCode))
             {
                 _pttActive = true;
-                _pttTargetInstance = instanceId;
-                _ = _pttHandler.StartAsync(instanceId);
+                _pttTargetInstance = null;
+                _pttKeyCode = e.Data.KeyCode;
+                _ = _pttHandler.StartAsync();
                 return;
             }
         }
 
-        // Ctrl+Space: PTT for selected instance
-        if (mask.HasCtrl() && e.Data.KeyCode == KeyCode.VcSpace && !_pttActive)
-        {
-            _pttActive = true;
-            _pttTargetInstance = null;
-            _ = _pttHandler.StartAsync();
-            return;
-        }
-
-        // Ctrl+Backtick: Cycle selected instance
-        if (mask.HasCtrl() && e.Data.KeyCode == KeyCode.VcBackQuote)
+        // Cycle selected instance (e.g. Ctrl+BackQuote)
+        if (_cycleCombo.Matches(mask, e.Data.KeyCode))
         {
             CycleSelectedInstance();
         }
@@ -89,30 +120,14 @@ public sealed class HotkeyManager : IDisposable
         if (!_pttActive)
             return;
 
-        var releasedInstanceKey = GetInstanceIdFromKey(e.Data.KeyCode);
-        var isSpaceRelease = e.Data.KeyCode == KeyCode.VcSpace;
-
-        if ((releasedInstanceKey == _pttTargetInstance) || (isSpaceRelease && _pttTargetInstance is null))
+        // Release PTT when the key that started it is released
+        if (e.Data.KeyCode == _pttKeyCode)
         {
             _pttActive = false;
             _pttTargetInstance = null;
             _ = _pttHandler.StopAsync();
         }
     }
-
-    private static string? GetInstanceIdFromKey(KeyCode keyCode) => keyCode switch
-    {
-        KeyCode.Vc1 => "1",
-        KeyCode.Vc2 => "2",
-        KeyCode.Vc3 => "3",
-        KeyCode.Vc4 => "4",
-        KeyCode.Vc5 => "5",
-        KeyCode.Vc6 => "6",
-        KeyCode.Vc7 => "7",
-        KeyCode.Vc8 => "8",
-        KeyCode.Vc9 => "9",
-        _ => null
-    };
 
     private void CycleSelectedInstance()
     {

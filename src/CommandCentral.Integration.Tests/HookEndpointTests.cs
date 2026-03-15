@@ -84,6 +84,19 @@ public class HookEndpointTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+    public async Task SessionEnd_UnregistersInstance()
+    {
+        var payload = new HookPayload { SessionId = "test-end-1", Cwd = "/project/gamma" };
+        await _client.PostAsJsonAsync("/hooks/session-start", payload);
+
+        var response = await _client.PostAsJsonAsync("/hooks/session-end", new HookPayload { SessionId = "test-end-1" });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var state = await _client.GetFromJsonAsync<StateResponse>("/api/state");
+        Assert.DoesNotContain(state!.Instances, i => i.SessionId == "test-end-1");
+    }
+
+    [Fact]
     public async Task State_ReturnsSelectedInstanceId()
     {
         var payload = new HookPayload { SessionId = "test-selected-1" };

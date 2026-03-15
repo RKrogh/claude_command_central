@@ -16,7 +16,7 @@
 - [x] Instance registry with auto-numbering
 - [x] Orchestrator with full hook lifecycle
 - [x] Internal state API (GET /api/state)
-- [x] HotkeyManager (SharpHook — Ctrl+1-9, Ctrl+Space, Ctrl+BackQuote)
+- [x] HotkeyManager (SharpHook — configurable PTT bindings, default Ctrl+0-9)
 - [x] PushToTalkHandler (PTT flow with event bus)
 - [x] AudioInputManager (mic → Whisper STT via VoiceToText NuGet)
 - [x] KeystrokeInjector (SharpHook EventSimulator)
@@ -24,14 +24,14 @@
 - [x] TtsNotifier + VoiceAssigner (TextToVoice NuGet)
 - [x] DaemonService (IHostedService)
 - [x] Full DI wiring with headless mode for tests
-- [x] 40 tests passing (Core + Integration + HTTP endpoints)
+- [x] 69 tests passing (Core + Integration + HTTP endpoints + KeyCombo + SessionEnd)
 - [x] Verify WSL2 → Windows localhost connectivity (mirrored networking via .wslconfig)
 - [ ] End-to-end manual test: speak → text in Claude Code prompt
 - [x] Hook installation script (install/uninstall/check, preserves existing settings)
 
 ### Phase 2: Multi-Instance + TTS
 - [x] Multi-instance registry with auto-numbering (done in Phase 1)
-- [x] Numbered PTT hotkeys Ctrl+1..9 (done in Phase 1)
+- [x] Configurable PTT hotkeys — default Ctrl+0-9, user-definable combos (done in Phase 1)
 - [x] Selected-instance mode Ctrl+Space (done in Phase 1)
 - [x] Instance state tracking (done in Phase 1)
 - [ ] TTS notification per instance (local engine — wiring exists, needs Whisper model)
@@ -45,8 +45,8 @@
 - [ ] Settings view
 - [ ] On-demand response reading (Ctrl+Shift+N)
 - [ ] ElevenLabs TTS for response reading
-- [ ] Hook installer script
-- [ ] WSL2 networking handling
+- [x] Hook installer script (done in Phase 1)
+- [x] WSL2 networking handling (mirrored networking, done in Phase 1)
 
 ### Phase 4: Polish & Extras
 - [ ] Vosk streaming STT
