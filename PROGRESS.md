@@ -1,37 +1,46 @@
 # Progress Tracker
 
-## Current Phase: Phase 0 — Planning & Setup
+## Current Phase: Phase 1 — Foundation (MVP)
 
 ### Phase 0: Planning & Setup
 - [x] Architecture design
 - [x] Implementation plan drafted
 - [x] Daemon + TUI architecture decided
 - [x] NuGet packages replacing git submodules decided
-- [ ] Git repo initialized
-- [ ] Solution and project scaffolding
-- [ ] Verify WSL2 → Windows localhost connectivity
+- [x] Git repo initialized
+- [x] Solution and project scaffolding
 
 ### Phase 1: Foundation (MVP)
-- [ ] Daemon with HTTP hook server (Minimal API)
-- [ ] SessionStart + Stop hook endpoints
-- [ ] Instance registry (single instance)
-- [ ] PTT mic capture → Whisper STT (proof of concept)
-- [ ] Keystroke injection to terminal window
-- [ ] End-to-end: speak → text in Claude Code prompt
-- [ ] Stop hook → console notification
+- [x] Daemon with HTTP hook server (Minimal API)
+- [x] SessionStart + Stop + Notification + PromptSubmit hook endpoints
+- [x] Instance registry with auto-numbering
+- [x] Orchestrator with full hook lifecycle
+- [x] Internal state API (GET /api/state)
+- [x] HotkeyManager (SharpHook — Ctrl+1-9, Ctrl+Space, Ctrl+BackQuote)
+- [x] PushToTalkHandler (PTT flow with event bus)
+- [x] AudioInputManager (mic → Whisper STT via VoiceToText NuGet)
+- [x] KeystrokeInjector (SharpHook EventSimulator)
+- [x] WindowsWindowManager (Win32 P/Invoke)
+- [x] TtsNotifier + VoiceAssigner (TextToVoice NuGet)
+- [x] DaemonService (IHostedService)
+- [x] Full DI wiring with headless mode for tests
+- [x] 40 tests passing (Core + Integration + HTTP endpoints)
+- [ ] Verify WSL2 → Windows localhost connectivity
+- [ ] End-to-end manual test: speak → text in Claude Code prompt
+- [ ] Hook installation script
 
 ### Phase 2: Multi-Instance + TTS
-- [ ] Multi-instance registry with auto-numbering
-- [ ] Numbered PTT hotkeys (Ctrl+1..9)
-- [ ] Selected-instance mode (Ctrl+Space)
-- [ ] TTS notification per instance (local engine)
+- [x] Multi-instance registry with auto-numbering (done in Phase 1)
+- [x] Numbered PTT hotkeys Ctrl+1..9 (done in Phase 1)
+- [x] Selected-instance mode Ctrl+Space (done in Phase 1)
+- [x] Instance state tracking (done in Phase 1)
+- [ ] TTS notification per instance (local engine — wiring exists, needs Whisper model)
 - [ ] Window targeting (match terminal ↔ instance)
-- [ ] Instance state tracking
 
 ### Phase 3: TUI + Full Voice
-- [ ] Daemon internal API (REST + WebSocket)
-- [ ] TUI shell (Terminal.Gui — main window, panes, status bar)
-- [ ] Agent list view with real-time state
+- [ ] Daemon internal API (WebSocket for real-time updates)
+- [x] TUI shell (Terminal.Gui — main window, panes, status bar) — scaffolded
+- [ ] Agent list view with real-time state (connect to daemon)
 - [ ] Agent detail view with activity log
 - [ ] Settings view
 - [ ] On-demand response reading (Ctrl+Shift+N)

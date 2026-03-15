@@ -1,0 +1,48 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -s -X POST http://localhost:9000/hooks/session-start -H 'Content-Type: application/json' -d \"$(cat /dev/stdin)\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -s -X POST http://localhost:9000/hooks/stop -H 'Content-Type: application/json' -d \"$(cat /dev/stdin)\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -s -X POST http://localhost:9000/hooks/notification -H 'Content-Type: application/json' -d \"$(cat /dev/stdin)\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -s -X POST http://localhost:9000/hooks/prompt-submit -H 'Content-Type: application/json' -d \"$(cat /dev/stdin)\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
