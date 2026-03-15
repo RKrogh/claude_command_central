@@ -6,12 +6,16 @@
 
   <ItemGroup>
     <PackageReference Include="SharpHook" Version="7.1.1" />
+    <PackageReference Include="VoiceToText" Version="0.1.0" />
+    <PackageReference Include="VoiceToText.Audio.NAudio" Version="0.1.0" />
+    <PackageReference Include="VoiceToText.Whisper" Version="0.1.0" />
   </ItemGroup>
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
 </Project>
