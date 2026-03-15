@@ -27,3 +27,6 @@ var logger = app.Services.GetRequiredService<ILogger<Program>>();
 logger.LogInformation("Command Central daemon starting on {Url}", $"http://localhost:{app.Configuration.GetValue("CommandCentral:Server:Port", 9000)}");
 
 app.Run();
+
+// Make Program accessible for WebApplicationFactory<Program> in integration tests
+public partial class Program;
