@@ -1,0 +1,9 @@
+<Solution>
+  <Project Path="CommandCentral.Core.Tests/CommandCentral.Core.Tests.csproj" />
+  <Project Path="CommandCentral.Core/CommandCentral.Core.csproj" />
+  <Project Path="CommandCentral.Daemon/CommandCentral.Daemon.csproj" />
+  <Project Path="CommandCentral.Input/CommandCentral.Input.csproj" />
+  <Project Path="CommandCentral.Integration.Tests/CommandCentral.Integration.Tests.csproj" />
+  <Project Path="CommandCentral.Output/CommandCentral.Output.csproj" />
+  <Project Path="CommandCentral.Tui/CommandCentral.Tui.csproj" />
+</Solution>
