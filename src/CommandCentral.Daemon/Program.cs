@@ -33,7 +33,16 @@ if (builder.Configuration["COMMANDCENTRAL_HEADLESS_ONLY"] is null &&
     builder.Services.AddVoiceToText();
     builder.Services.AddWhisperRecognizer(opts =>
     {
-        opts.ModelPath = sttConfig.GetValue("ModelPath", "./models/ggml-base.en.bin")!;
+        var modelPath = sttConfig.GetValue("ModelPath", "../../models/ggml-tiny.bin")!;
+        if (!Path.IsPathRooted(modelPath))
+        {
+            // Try relative to content root first (project root when running via dotnet run),
+            // then fall back to base directory (output bin folder)
+            var contentRoot = Path.Combine(builder.Environment.ContentRootPath, modelPath);
+            var baseDir = Path.Combine(AppContext.BaseDirectory, modelPath);
+            modelPath = File.Exists(contentRoot) ? contentRoot : baseDir;
+        }
+        opts.ModelPath = modelPath;
     });
     builder.Services.AddNAudioMicrophone();
 

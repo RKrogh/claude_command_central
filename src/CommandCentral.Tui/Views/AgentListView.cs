@@ -5,6 +5,9 @@ namespace CommandCentral.Tui.Views;
 public sealed class AgentListView : FrameView
 {
     private readonly ListView _list;
+    private List<AgentListItem> _agents = [];
+
+    public event Action<string>? AgentSelected;
 
     public AgentListView()
     {
@@ -18,6 +21,12 @@ public sealed class AgentListView : FrameView
             Height = Dim.Fill(3)
         };
 
+        _list.SelectedItemChanged += (args) =>
+        {
+            if (args.Item >= 0 && args.Item < _agents.Count)
+                AgentSelected?.Invoke(_agents[args.Item].Id);
+        };
+
         var legend = new Label
         {
             X = 0,
@@ -29,7 +38,7 @@ public sealed class AgentListView : FrameView
         {
             X = 0,
             Y = Pos.AnchorEnd(1),
-            Text = "[S]ettings  [H]otkeys  [Q]uit"
+            Text = "[Q]uit"
         };
 
         Add(_list, legend, nav);
@@ -37,7 +46,8 @@ public sealed class AgentListView : FrameView
 
     public void UpdateAgents(IReadOnlyList<AgentListItem> agents)
     {
-        _list.SetSource(agents.Select(a => a.DisplayText).ToList());
+        _agents = agents.ToList();
+        _list.SetSource(_agents.Select(a => a.DisplayText).ToList());
     }
 }
 
