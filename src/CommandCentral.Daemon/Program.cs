@@ -29,8 +29,11 @@ builder.Services.AddSingleton<IInstanceRegistry>(sp =>
             .Value.Instances.MaxInstances));
 builder.Services.AddSingleton<IOrchestrator, Orchestrator>();
 
-// Window manager — needed by Orchestrator for window capture on session registration
+// Platform services — needed by Orchestrator and input pipeline
 builder.Services.AddSingleton<IWindowManager, WindowsWindowManager>();
+builder.Services.AddSingleton<IVirtualDesktopService, WindowsVirtualDesktopService>();
+builder.Services.AddSingleton<InjectionBuffer>();
+builder.Services.AddSingleton<DesktopNavigationContext>();
 
 // Input/Output services — skip if COMMANDCENTRAL_HEADLESS_ONLY env var is set
 // (used by integration tests to avoid hardware dependencies)
@@ -67,6 +70,9 @@ if (builder.Configuration["COMMANDCENTRAL_HEADLESS_ONLY"] is null &&
 
     // Daemon hosted service (starts hotkey listener)
     builder.Services.AddHostedService<DaemonService>();
+
+    // Buffered injection monitor (polls for cross-desktop text ready to inject)
+    builder.Services.AddHostedService<BufferedInjectionMonitor>();
 }
 
 var app = builder.Build();

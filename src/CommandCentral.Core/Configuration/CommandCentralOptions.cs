@@ -27,8 +27,45 @@ public sealed class HotkeyOptions
         ["Ctrl+0"] = "10"
     };
 
+    /// <summary>
+    /// Focus-only bindings: key combo → instance ID.
+    /// Switches to the target instance's desktop and focuses its window.
+    /// Default: Shift+1 through Shift+9.
+    /// </summary>
+    public Dictionary<string, string> FocusBindings { get; set; } = new()
+    {
+        ["Shift+1"] = "1",
+        ["Shift+2"] = "2",
+        ["Shift+3"] = "3",
+        ["Shift+4"] = "4",
+        ["Shift+5"] = "5",
+        ["Shift+6"] = "6",
+        ["Shift+7"] = "7",
+        ["Shift+8"] = "8",
+        ["Shift+9"] = "9"
+    };
+
+    /// <summary>
+    /// Focus PTT bindings: key combo → instance ID.
+    /// Switches to the target instance's virtual desktop before recording.
+    /// Default: Ctrl+Shift+1 through Ctrl+Shift+9.
+    /// </summary>
+    public Dictionary<string, string> FocusPttBindings { get; set; } = new()
+    {
+        ["Ctrl+Shift+1"] = "1",
+        ["Ctrl+Shift+2"] = "2",
+        ["Ctrl+Shift+3"] = "3",
+        ["Ctrl+Shift+4"] = "4",
+        ["Ctrl+Shift+5"] = "5",
+        ["Ctrl+Shift+6"] = "6",
+        ["Ctrl+Shift+7"] = "7",
+        ["Ctrl+Shift+8"] = "8",
+        ["Ctrl+Shift+9"] = "9"
+    };
+
     public string PttSelectedInstance { get; set; } = "Ctrl+Space";
     public string CycleInstance { get; set; } = "Ctrl+BackQuote";
+    public string QuickBack { get; set; } = "Ctrl+Shift+Section";
     public string MuteAll { get; set; } = "Ctrl+Shift+M";
     public string ReadResponse { get; set; } = "Ctrl+Shift+{N}";
 }

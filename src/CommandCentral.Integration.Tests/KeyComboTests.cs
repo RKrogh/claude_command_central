@@ -101,12 +101,22 @@ public class KeyComboTests
     }
 
     [Fact]
-    public void Matches_ExtraModifiersAllowed()
+    public void Matches_ExtraModifiersRejected()
     {
-        // Ctrl+1 should match even if Shift is also held
+        // Ctrl+1 must NOT match when Shift is also held (that's Ctrl+Shift+1)
         var combo = KeyCombo.Parse("Ctrl+1");
 
+        Assert.False(combo.Matches(EventMask.LeftCtrl | EventMask.LeftShift, KeyCode.Vc1));
+    }
+
+    [Fact]
+    public void Matches_CtrlShiftCombo_RequiresBothModifiers()
+    {
+        var combo = KeyCombo.Parse("Ctrl+Shift+1");
+
         Assert.True(combo.Matches(EventMask.LeftCtrl | EventMask.LeftShift, KeyCode.Vc1));
+        Assert.False(combo.Matches(EventMask.LeftCtrl, KeyCode.Vc1));
+        Assert.False(combo.Matches(EventMask.LeftShift, KeyCode.Vc1));
     }
 
     [Fact]

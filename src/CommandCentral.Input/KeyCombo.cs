@@ -16,14 +16,18 @@ public readonly record struct KeyCombo(EventMask Modifiers, KeyCode Key)
         if (eventKey != Key)
             return false;
 
-        // Check required modifiers are present
-        // We store LeftCtrl/LeftShift/LeftAlt as canonical flags;
-        // HasCtrl()/HasShift()/HasAlt() match either left or right variants.
+        // Check required modifiers are present (left or right variants accepted)
         if (Modifiers.HasFlag(EventMask.LeftCtrl) && !eventMask.HasCtrl())
             return false;
         if (Modifiers.HasFlag(EventMask.LeftShift) && !eventMask.HasShift())
             return false;
         if (Modifiers.HasFlag(EventMask.LeftAlt) && !eventMask.HasAlt())
+            return false;
+
+        // Reject extra modifiers not in this combo (Ctrl+1 must NOT match Ctrl+Shift+1)
+        if (!Modifiers.HasFlag(EventMask.LeftShift) && eventMask.HasShift())
+            return false;
+        if (!Modifiers.HasFlag(EventMask.LeftAlt) && eventMask.HasAlt())
             return false;
 
         return true;
@@ -111,6 +115,7 @@ public readonly record struct KeyCombo(EventMask Modifiers, KeyCode Key)
         // Special keys
         "space" => KeyCode.VcSpace,
         "backquote" or "backtick" or "`" or "oemtilde" => KeyCode.VcBackQuote,
+        "section" or "§" or "102" or "oem102" => KeyCode.Vc102,
         "tab" => KeyCode.VcTab,
         "enter" or "return" => KeyCode.VcEnter,
         "escape" or "esc" => KeyCode.VcEscape,

@@ -8,6 +8,9 @@ public enum DaemonEventType
     TtsStarted,
     TtsStopped,
     SelectedInstanceChanged,
+    TextBuffered,
+    TextInjected,
+    DesktopSwitched,
 }
 
 public sealed record DaemonEvent(

@@ -24,7 +24,7 @@
 - [x] TtsNotifier + VoiceAssigner (TextToVoice NuGet)
 - [x] DaemonService (IHostedService)
 - [x] Full DI wiring with headless mode for tests
-- [x] 69 tests passing (Core + Integration + HTTP endpoints + KeyCombo + SessionEnd)
+- [x] 70 tests passing (Core + Integration + HTTP endpoints + KeyCombo + SessionEnd)
 - [x] Verify WSL2 → Windows localhost connectivity (mirrored networking via .wslconfig)
 - [x] End-to-end manual test: speak → text in Claude Code prompt
 - [x] Hook installation script (install/uninstall/check, preserves existing settings)
@@ -38,9 +38,15 @@
 - [x] Configurable PTT hotkeys — default Ctrl+0-9, user-definable combos (done in Phase 1)
 - [x] Selected-instance mode Ctrl+Space (done in Phase 1)
 - [x] Instance state tracking (done in Phase 1)
-- [x] Window targeting via terminal marker (hook sets title, daemon matches by marker)
+- [x] Window targeting via terminal marker (partially working — see Known Issues)
 - [x] Window focus + keystroke injection (AttachThreadInput + SetForegroundWindow)
 - [x] GetForegroundWindow capture as fallback
+- [x] Virtual desktop awareness (IVirtualDesktopManager COM interop)
+- [x] Buffered PTT — cross-desktop text buffered, auto-injected on desktop switch
+- [x] Focus-only bindings (Shift+N — switch to instance N's desktop)
+- [x] Focus PTT (Ctrl+Shift+N — switch desktop + record)
+- [x] Quick-back (Ctrl+Shift+§ — return to previous desktop)
+- [x] Key modifier exclusivity (Ctrl+1 won't fire when Ctrl+Shift+1 pressed)
 - [ ] TTS notification per instance (local engine — wiring exists, needs model)
 
 ### Phase 3: TUI + Full Voice
@@ -51,8 +57,6 @@
 - [ ] Settings view
 - [ ] On-demand response reading (Ctrl+Shift+N)
 - [ ] ElevenLabs TTS for response reading
-- [x] Hook installer script (done in Phase 1)
-- [x] WSL2 networking handling (mirrored networking, done in Phase 1)
 
 ### Phase 4: Polish & Extras
 - [ ] Vosk streaming STT
@@ -61,3 +65,7 @@
 - [ ] Activity log / transcript viewer
 - [ ] Auto-reconnect
 - [ ] Persistent config across daemon restarts
+
+### Known Issues
+- **Window marker unreliable**: Terminal title marker (`cc:<hex>`) fails consistently — Claude Code resets the title before daemon can match. Instance 2+ on the same desktop may get `window: 0x0`. Foreground fallback only claims one window per desktop. Needs a different identification approach.
+- **Key binding conflicts**: Global hotkeys (`Shift+1-9`, `Ctrl+1-9`) conflict with common shortcuts (`!` on Nordic keyboards, browser tabs, VS Code). Needs prefix-key or command-mode design.
