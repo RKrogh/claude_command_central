@@ -9,9 +9,10 @@ public static class HookEndpoints
     {
         var hooks = app.MapGroup("/hooks");
 
-        hooks.MapPost("/session-start", async (HookPayload payload, IOrchestrator orchestrator) =>
+        hooks.MapPost("/session-start", async (HookPayload payload, IOrchestrator orchestrator, HttpContext ctx, CancellationToken ct) =>
         {
-            await orchestrator.HandleSessionStartAsync(payload);
+            var windowMarker = ctx.Request.Query["wm"].FirstOrDefault();
+            await orchestrator.HandleSessionStartAsync(payload, windowMarker, ct);
             return Results.Ok();
         });
 

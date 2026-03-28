@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "curl -sf -X POST http://localhost:9000/hooks/session-start -H 'Content-Type: application/json' -d @- >/dev/null 2>&1 || true",
+            "command": "CC_MARKER=$(head -c8 /dev/urandom | od -An -tx1 | tr -d ' \\n'); CC_PID=$PPID; while [ \"$CC_PID\" -gt 1 ]; do CC_TTY=$(readlink /proc/$CC_PID/fd/0 2>/dev/null); case $CC_TTY in /dev/pts/*) break;; esac; CC_PID=$(awk '/PPid/{print $2}' /proc/$CC_PID/status 2>/dev/null); done; printf '\\033]0;cc:%s\\007' \"$CC_MARKER\" > \"$CC_TTY\" 2>/dev/null; curl -sf -X POST \"http://localhost:9000/hooks/session-start?wm=$CC_MARKER\" -H 'Content-Type: application/json' -d @- >/dev/null 2>&1 || true",
             "timeout": 5
           }
         ]

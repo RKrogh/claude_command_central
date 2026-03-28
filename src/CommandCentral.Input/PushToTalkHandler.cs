@@ -35,6 +35,7 @@ public sealed class PushToTalkHandler(
 
     public async Task StopAsync(CancellationToken ct = default)
     {
+        logger.LogInformation("PTT stop requested (isCapturing: {IsCapturing})", audioInput.IsCapturing);
         if (!audioInput.IsCapturing)
             return;
 

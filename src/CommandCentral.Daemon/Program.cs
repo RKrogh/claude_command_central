@@ -29,6 +29,9 @@ builder.Services.AddSingleton<IInstanceRegistry>(sp =>
             .Value.Instances.MaxInstances));
 builder.Services.AddSingleton<IOrchestrator, Orchestrator>();
 
+// Window manager — needed by Orchestrator for window capture on session registration
+builder.Services.AddSingleton<IWindowManager, WindowsWindowManager>();
+
 // Input/Output services — skip if COMMANDCENTRAL_HEADLESS_ONLY env var is set
 // (used by integration tests to avoid hardware dependencies)
 if (builder.Configuration["COMMANDCENTRAL_HEADLESS_ONLY"] is null &&
@@ -53,7 +56,6 @@ if (builder.Configuration["COMMANDCENTRAL_HEADLESS_ONLY"] is null &&
     builder.Services.AddNAudioMicrophone();
 
     // Input services
-    builder.Services.AddSingleton<IWindowManager, WindowsWindowManager>();
     builder.Services.AddSingleton<IKeystrokeInjector, KeystrokeInjector>();
     builder.Services.AddSingleton<IAudioInputManager, AudioInputManager>();
     builder.Services.AddSingleton<PushToTalkHandler>();

@@ -1,6 +1,6 @@
 # Progress Tracker
 
-## Current Phase: Phase 1 — Foundation (MVP)
+## Current Phase: Phase 2 — Multi-Instance + TTS
 
 ### Phase 0: Planning & Setup
 - [x] Architecture design
@@ -16,7 +16,7 @@
 - [x] Instance registry with auto-numbering
 - [x] Orchestrator with full hook lifecycle
 - [x] Internal state API (GET /api/state)
-- [x] HotkeyManager (SharpHook — configurable PTT bindings, default Ctrl+0-9)
+- [x] HotkeyManager (SharpHook SimpleGlobalHook — configurable PTT bindings, default Ctrl+0-9)
 - [x] PushToTalkHandler (PTT flow with event bus)
 - [x] AudioInputManager (mic → Whisper STT via VoiceToText NuGet)
 - [x] KeystrokeInjector (SharpHook EventSimulator)
@@ -26,16 +26,22 @@
 - [x] Full DI wiring with headless mode for tests
 - [x] 69 tests passing (Core + Integration + HTTP endpoints + KeyCombo + SessionEnd)
 - [x] Verify WSL2 → Windows localhost connectivity (mirrored networking via .wslconfig)
-- [ ] End-to-end manual test: speak → text in Claude Code prompt
+- [x] End-to-end manual test: speak → text in Claude Code prompt
 - [x] Hook installation script (install/uninstall/check, preserves existing settings)
+- [x] PTT key suppression (keys don't leak to focused app)
+- [x] Whisper language pinning (configurable, defaults to "en")
+- [x] Whisper.net.Runtime dependency (native library)
+- [x] Cross-platform hook installer (PowerShell with WSL symlink detection + bash)
 
 ### Phase 2: Multi-Instance + TTS
 - [x] Multi-instance registry with auto-numbering (done in Phase 1)
 - [x] Configurable PTT hotkeys — default Ctrl+0-9, user-definable combos (done in Phase 1)
 - [x] Selected-instance mode Ctrl+Space (done in Phase 1)
 - [x] Instance state tracking (done in Phase 1)
-- [ ] TTS notification per instance (local engine — wiring exists, needs Whisper model)
-- [ ] Window targeting (match terminal ↔ instance)
+- [x] Window targeting via terminal marker (hook sets title, daemon matches by marker)
+- [x] Window focus + keystroke injection (AttachThreadInput + SetForegroundWindow)
+- [x] GetForegroundWindow capture as fallback
+- [ ] TTS notification per instance (local engine — wiring exists, needs model)
 
 ### Phase 3: TUI + Full Voice
 - [ ] Daemon internal API (WebSocket for real-time updates)

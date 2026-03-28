@@ -9,6 +9,7 @@
     <PackageReference Include="VoiceToText" Version="0.1.0" />
     <PackageReference Include="VoiceToText.Audio.NAudio" Version="0.1.0" />
     <PackageReference Include="VoiceToText.Whisper" Version="0.1.0" />
+    <PackageReference Include="Whisper.net.Runtime" Version="1.9.0" />
   </ItemGroup>
 
   <PropertyGroup>

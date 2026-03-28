@@ -9,7 +9,7 @@ namespace CommandCentral.Input;
 
 public sealed class HotkeyManager : IDisposable
 {
-    private readonly TaskPoolGlobalHook _hook;
+    private readonly SimpleGlobalHook _hook;
     private readonly PushToTalkHandler _pttHandler;
     private readonly IInstanceRegistry _registry;
     private readonly ILogger<HotkeyManager> _logger;
@@ -53,7 +53,9 @@ public sealed class HotkeyManager : IDisposable
         _pttSelectedCombo = KeyCombo.Parse(hotkeys.PttSelectedInstance);
         _cycleCombo = KeyCombo.Parse(hotkeys.CycleInstance);
 
-        _hook = new TaskPoolGlobalHook();
+        // SimpleGlobalHook runs handlers on the hook thread — required for event suppression.
+        // This prevents PTT keys from leaking to the focused application.
+        _hook = new SimpleGlobalHook();
         _hook.KeyPressed += OnKeyPressed;
         _hook.KeyReleased += OnKeyReleased;
     }
@@ -89,10 +91,12 @@ public sealed class HotkeyManager : IDisposable
             {
                 if (combo.Matches(mask, e.Data.KeyCode))
                 {
+                    e.SuppressEvent = true;
                     _pttActive = true;
                     _pttTargetInstance = instanceId;
                     _pttKeyCode = e.Data.KeyCode;
-                    _ = _pttHandler.StartAsync(instanceId);
+                    _logger.LogDebug("PTT key pressed: {Key} for instance {Id}", e.Data.KeyCode, instanceId);
+                    _ = Task.Run(() => _pttHandler.StartAsync(instanceId));
                     return;
                 }
             }
@@ -100,17 +104,26 @@ public sealed class HotkeyManager : IDisposable
             // PTT for selected instance (e.g. Ctrl+Space)
             if (_pttSelectedCombo.Matches(mask, e.Data.KeyCode))
             {
+                e.SuppressEvent = true;
                 _pttActive = true;
                 _pttTargetInstance = null;
                 _pttKeyCode = e.Data.KeyCode;
-                _ = _pttHandler.StartAsync();
+                _logger.LogDebug("PTT key pressed: {Key} for selected instance", e.Data.KeyCode);
+                _ = Task.Run(() => _pttHandler.StartAsync());
                 return;
             }
+        }
+        else
+        {
+            // Suppress key repeat while PTT is active
+            e.SuppressEvent = true;
+            return;
         }
 
         // Cycle selected instance (e.g. Ctrl+BackQuote)
         if (_cycleCombo.Matches(mask, e.Data.KeyCode))
         {
+            e.SuppressEvent = true;
             CycleSelectedInstance();
         }
     }
@@ -120,12 +133,31 @@ public sealed class HotkeyManager : IDisposable
         if (!_pttActive)
             return;
 
-        // Release PTT when the key that started it is released
-        if (e.Data.KeyCode == _pttKeyCode)
+        // Release PTT when the key that started it is released.
+        // Also release if Ctrl is released (modifier up = PTT ends).
+        var isTargetKey = e.Data.KeyCode == _pttKeyCode;
+        var isModifierUp = e.Data.KeyCode is KeyCode.VcLeftControl or KeyCode.VcRightControl
+                        or KeyCode.VcLeftShift or KeyCode.VcRightShift
+                        or KeyCode.VcLeftAlt or KeyCode.VcRightAlt;
+
+        if (isTargetKey || isModifierUp)
         {
+            e.SuppressEvent = true;
+            _logger.LogDebug("PTT released (key: {Key}, wasTarget: {IsTarget}, wasModifier: {IsMod})",
+                e.Data.KeyCode, isTargetKey, isModifierUp);
             _pttActive = false;
             _pttTargetInstance = null;
-            _ = _pttHandler.StopAsync();
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _pttHandler.StopAsync();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "PTT stop failed");
+                }
+            });
         }
     }
 

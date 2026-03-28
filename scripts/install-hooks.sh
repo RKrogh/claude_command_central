@@ -31,12 +31,14 @@ while [[ $# -gt 0 ]]; do
         --check)    ACTION="check"; shift ;;
         --uninstall) ACTION="uninstall"; shift ;;
         --port)     DAEMON_PORT="$2"; shift 2 ;;
+        --settings-path) SETTINGS_FILE="$2"; shift 2 ;;
         -h|--help)
-            echo "Usage: $0 [--check|--uninstall] [--port PORT]"
+            echo "Usage: $0 [--check|--uninstall] [--port PORT] [--settings-path PATH]"
             echo ""
-            echo "  --check      Check if hooks are installed"
-            echo "  --uninstall  Remove Command Central hooks"
-            echo "  --port PORT  Daemon port (default: 9000)"
+            echo "  --check              Check if hooks are installed"
+            echo "  --uninstall          Remove Command Central hooks"
+            echo "  --port PORT          Daemon port (default: 9000)"
+            echo "  --settings-path PATH Settings file (default: ~/.claude/settings.json)"
             exit 0
             ;;
         *) echo "Unknown option: $1"; exit 1 ;;

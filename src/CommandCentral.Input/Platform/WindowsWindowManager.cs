@@ -4,12 +4,32 @@ namespace CommandCentral.Input.Platform;
 
 public sealed partial class WindowsWindowManager : IWindowManager
 {
+    public Task<nint> GetForegroundWindowAsync(CancellationToken ct = default)
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            return Task.FromResult(nint.Zero);
+
+        return Task.FromResult(GetForegroundWindow());
+    }
+
     public Task FocusWindowAsync(nint windowHandle, CancellationToken ct = default)
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             return Task.CompletedTask;
 
+        // AttachThreadInput trick: attach our thread to the target window's thread
+        // so Windows allows us to call SetForegroundWindow.
+        var currentThreadId = GetCurrentThreadId();
+        var targetThreadId = GetWindowThreadProcessId(windowHandle, out _);
+
+        if (currentThreadId != targetThreadId)
+            AttachThreadInput(currentThreadId, targetThreadId, true);
+
         SetForegroundWindow(windowHandle);
+
+        if (currentThreadId != targetThreadId)
+            AttachThreadInput(currentThreadId, targetThreadId, false);
+
         return Task.CompletedTask;
     }
 
@@ -74,6 +94,9 @@ public sealed partial class WindowsWindowManager : IWindowManager
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool SetForegroundWindow(nint hWnd);
 
+    [LibraryImport("user32.dll", EntryPoint = "GetForegroundWindow")]
+    private static partial nint GetForegroundWindow();
+
     [LibraryImport("user32.dll", EntryPoint = "GetWindowTextW")]
     private static unsafe partial int GetWindowText(nint hWnd, char* lpString, int nMaxCount);
 
@@ -83,4 +106,11 @@ public sealed partial class WindowsWindowManager : IWindowManager
 
     [LibraryImport("user32.dll")]
     private static partial uint GetWindowThreadProcessId(nint hWnd, out uint lpdwProcessId);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool AttachThreadInput(uint idAttach, uint idAttachTo, [MarshalAs(UnmanagedType.Bool)] bool fAttach);
+
+    [LibraryImport("kernel32.dll")]
+    private static partial uint GetCurrentThreadId();
 }

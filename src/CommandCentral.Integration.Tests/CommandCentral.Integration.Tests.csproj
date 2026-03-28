@@ -22,6 +22,7 @@
   <ItemGroup>
     <ProjectReference Include="..\CommandCentral.Core\CommandCentral.Core.csproj" />
     <ProjectReference Include="..\CommandCentral.Daemon\CommandCentral.Daemon.csproj" />
+    <ProjectReference Include="..\CommandCentral.Input\CommandCentral.Input.csproj" />
   </ItemGroup>
 
 </Project>

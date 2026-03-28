@@ -10,7 +10,8 @@ Enables voice input (STT) targeted at specific instances and voice output (TTS) 
 - **TUI**: Attachable Terminal.Gui interface — view layer that connects to daemon via WebSocket
 - **HTTP server**: localhost endpoint receiving Claude Code hooks from WSL instances + internal API for TUI
 - **Dependencies**: VoiceToText and TextToVoice via NuGet packages (nuget.org)
-- **Claude Code integration**: Via hooks system (Stop, Notification, SessionStart, UserPromptSubmit)
+- **Claude Code integration**: Via hooks system (SessionStart, Stop, Notification, UserPromptSubmit, SessionEnd)
+- **Window targeting**: SessionStart hook sets a terminal title marker, daemon matches via EnumWindows
 - **Claude Code terminals**: Remain as-is in separate windows — Command Central is a control plane, not a replacement
 
 ## Key Design Decisions
@@ -27,7 +28,7 @@ Enables voice input (STT) targeted at specific instances and voice output (TTS) 
 - ASP.NET Minimal API for hook endpoint + internal API
 - WebSocket for daemon ↔ TUI real-time communication
 - Terminal.Gui for TUI rendering
-- SharpHook for global hotkeys and keystroke simulation
+- SharpHook for global hotkeys (SimpleGlobalHook with event suppression) and keystroke simulation
 - VoiceToText (NuGet) for STT
 - TextToVoice (NuGet) for TTS
 
@@ -44,4 +45,4 @@ See PROGRESS.md for current status and task tracking.
 See IDEAS.md for future enhancements.
 
 # currentDate
-Today's date is 2026-03-15.
+Today's date is 2026-03-28.

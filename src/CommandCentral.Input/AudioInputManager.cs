@@ -1,5 +1,7 @@
+using CommandCentral.Core.Configuration;
 using CommandCentral.Core.Services;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using VoiceToText.Abstractions;
 using VoiceToText.Audio;
 using VoiceToText.Models;
@@ -9,8 +11,10 @@ namespace CommandCentral.Input;
 public sealed class AudioInputManager(
     IAudioSource audioSource,
     ISpeechRecognizer recognizer,
+    IOptions<CommandCentralOptions> options,
     ILogger<AudioInputManager> logger) : IAudioInputManager, IDisposable
 {
+    private readonly string _language = options.Value.Stt.Language;
     private MemoryStream? _captureBuffer;
     private readonly Lock _lock = new();
 
@@ -44,22 +48,28 @@ public sealed class AudioInputManager(
 
         if (buffer.Length == 0)
         {
-            logger.LogDebug("No audio captured");
+            logger.LogInformation("No audio captured (0 bytes)");
             buffer.Dispose();
             return string.Empty;
         }
 
+        logger.LogInformation("Audio captured: {Bytes} bytes, transcribing...", buffer.Length);
         buffer.Position = 0;
 
         var wavStream = WrapPcmAsWav(buffer, audioSource.Format);
 
         try
         {
-            var result = await recognizer.TranscribeAsync(wavStream, new RecognizerOptions(), ct);
+            var result = await recognizer.TranscribeAsync(wavStream, new RecognizerOptions { Language = _language }, ct);
             var text = result.Text?.Trim() ?? string.Empty;
-            logger.LogInformation("STT result ({Length} chars): {Preview}",
+            logger.LogInformation("STT result ({Length} chars): \"{Preview}\"",
                 text.Length, text.Length > 80 ? text[..80] + "..." : text);
             return text;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Whisper transcription failed");
+            return string.Empty;
         }
         finally
         {

@@ -2,6 +2,7 @@ using CommandCentral.Core.Events;
 using CommandCentral.Core.Models;
 using CommandCentral.Core.Services;
 using CommandCentral.Daemon;
+using CommandCentral.Input.Platform;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CommandCentral.Integration.Tests;
@@ -15,7 +16,15 @@ public class OrchestratorTests
     public OrchestratorTests()
     {
         _registry = new InMemoryInstanceRegistry(_eventBus);
-        _orchestrator = new Orchestrator(_registry, _eventBus, NullLogger<Orchestrator>.Instance);
+        _orchestrator = new Orchestrator(_registry, _eventBus, new NullWindowManager(), NullLogger<Orchestrator>.Instance);
+    }
+
+    private sealed class NullWindowManager : IWindowManager
+    {
+        public Task<nint> GetForegroundWindowAsync(CancellationToken ct = default) => Task.FromResult(nint.Zero);
+        public Task FocusWindowAsync(nint windowHandle, CancellationToken ct = default) => Task.CompletedTask;
+        public Task<nint> FindWindowByTitleAsync(string titlePattern, CancellationToken ct = default) => Task.FromResult(nint.Zero);
+        public Task<IReadOnlyList<WindowInfo>> GetWindowsAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<WindowInfo>>([]);
     }
 
     [Fact]

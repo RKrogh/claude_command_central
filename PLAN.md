@@ -429,12 +429,15 @@ shared networks. An API key/shared secret on hook requests is recommended in thi
 Hook commands use `localhost:9000` with mirrored networking, or the Windows host IP
 (`$(cat /etc/resolv.conf | grep nameserver | awk '{print $2}')`) without it.
 
-### Terminal Window Identification
-Need to match a Claude Code session to a specific terminal window.
-Approaches:
-- On SessionStart, capture the PID chain: hook → curl → shell → terminal
-- Match terminal window by title (often includes CWD)
-- Or: have the hook set the terminal title to include the instance ID
+### Terminal Window Identification (Implemented)
+The SessionStart hook identifies its terminal window using a marker-based approach:
+1. Hook generates a random hex marker
+2. Hook walks the process tree to find the terminal's pts device (`/dev/pts/*`)
+3. Hook writes an ANSI escape sequence to set the terminal title to `cc:<marker>`
+4. Hook passes the marker as a query parameter to the daemon (`?wm=<marker>`)
+5. Daemon calls `EnumWindows` + `GetWindowText` to find the window with matching title
+6. Fallback: `GetForegroundWindow()` if marker matching fails
+7. Window focus for injection uses `AttachThreadInput` + `SetForegroundWindow` (Win32)
 
 ### Audio Device Management
 - Mic input: default device or configurable
