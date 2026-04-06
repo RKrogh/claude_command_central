@@ -31,7 +31,7 @@ Thumbs.db
 desktop.ini
 
 ## Models (large binary files)
-models/
+/models/
 *.bin
 *.onnx
 
