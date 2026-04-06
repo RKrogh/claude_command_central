@@ -30,7 +30,14 @@ bld/
 Thumbs.db
 desktop.ini
 
+<<<<<<< Updated upstream
 ## Models (large binary files)
+||||||| Stash base
+## Models (large binary files)
+models/
+=======
+## Models (large binary files — top-level only)
+>>>>>>> Stashed changes
 /models/
 *.bin
 *.onnx
