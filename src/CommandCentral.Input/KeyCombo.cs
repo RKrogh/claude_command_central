@@ -25,6 +25,8 @@ public readonly record struct KeyCombo(EventMask Modifiers, KeyCode Key)
             return false;
 
         // Reject extra modifiers not in this combo (Ctrl+1 must NOT match Ctrl+Shift+1)
+        if (!Modifiers.HasFlag(EventMask.LeftCtrl) && eventMask.HasCtrl())
+            return false;
         if (!Modifiers.HasFlag(EventMask.LeftShift) && eventMask.HasShift())
             return false;
         if (!Modifiers.HasFlag(EventMask.LeftAlt) && eventMask.HasAlt())

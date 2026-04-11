@@ -11,6 +11,8 @@ public enum DaemonEventType
     TextBuffered,
     TextInjected,
     DesktopSwitched,
+    LeaderActivated,
+    LeaderDeactivated,
 }
 
 public sealed record DaemonEvent(

@@ -9,28 +9,39 @@ public sealed class ServerOptions
 public sealed class HotkeyOptions
 {
     /// <summary>
-    /// PTT bindings: key combo → instance ID.
-    /// Default: Ctrl+1 through Ctrl+9 → "1"-"9", Ctrl+0 → "10".
-    /// Users can add custom bindings like "Ctrl+Shift+K": "15".
+    /// Leader key combo that activates hotkey mode.
+    /// Only this combo is intercepted globally — all other bindings
+    /// are only active during the leader window.
+    /// </summary>
+    public string LeaderKey { get; set; } = "Ctrl+Shift+BackQuote";
+
+    /// <summary>
+    /// Timeout in milliseconds before leader mode auto-deactivates.
+    /// </summary>
+    public int LeaderTimeoutMs { get; set; } = 2000;
+
+    /// <summary>
+    /// PTT bindings active during leader mode: key → instance ID.
+    /// Hold to record, release to stop. No modifiers needed.
+    /// Default: 1-9 → instance "1"-"9".
     /// </summary>
     public Dictionary<string, string> PttBindings { get; set; } = new()
     {
-        ["Ctrl+1"] = "1",
-        ["Ctrl+2"] = "2",
-        ["Ctrl+3"] = "3",
-        ["Ctrl+4"] = "4",
-        ["Ctrl+5"] = "5",
-        ["Ctrl+6"] = "6",
-        ["Ctrl+7"] = "7",
-        ["Ctrl+8"] = "8",
-        ["Ctrl+9"] = "9",
-        ["Ctrl+0"] = "10"
+        ["1"] = "1",
+        ["2"] = "2",
+        ["3"] = "3",
+        ["4"] = "4",
+        ["5"] = "5",
+        ["6"] = "6",
+        ["7"] = "7",
+        ["8"] = "8",
+        ["9"] = "9"
     };
 
     /// <summary>
-    /// Focus-only bindings: key combo → instance ID.
-    /// Switches to the target instance's desktop and focuses its window.
-    /// Default: Shift+1 through Shift+9.
+    /// Focus bindings active during leader mode: key → instance ID.
+    /// Switches to instance's desktop. Instant action.
+    /// Default: Shift+1-9 → instance "1"-"9".
     /// </summary>
     public Dictionary<string, string> FocusBindings { get; set; } = new()
     {
@@ -45,29 +56,17 @@ public sealed class HotkeyOptions
         ["Shift+9"] = "9"
     };
 
-    /// <summary>
-    /// Focus PTT bindings: key combo → instance ID.
-    /// Switches to the target instance's virtual desktop before recording.
-    /// Default: Ctrl+Shift+1 through Ctrl+Shift+9.
-    /// </summary>
-    public Dictionary<string, string> FocusPttBindings { get; set; } = new()
-    {
-        ["Ctrl+Shift+1"] = "1",
-        ["Ctrl+Shift+2"] = "2",
-        ["Ctrl+Shift+3"] = "3",
-        ["Ctrl+Shift+4"] = "4",
-        ["Ctrl+Shift+5"] = "5",
-        ["Ctrl+Shift+6"] = "6",
-        ["Ctrl+Shift+7"] = "7",
-        ["Ctrl+Shift+8"] = "8",
-        ["Ctrl+Shift+9"] = "9"
-    };
+    /// <summary>PTT for currently selected instance (leader mode). Hold to record.</summary>
+    public string PttSelectedInstance { get; set; } = "Space";
 
-    public string PttSelectedInstance { get; set; } = "Ctrl+Space";
-    public string CycleInstance { get; set; } = "Ctrl+BackQuote";
-    public string QuickBack { get; set; } = "Ctrl+Shift+Section";
-    public string MuteAll { get; set; } = "Ctrl+Shift+M";
-    public string ReadResponse { get; set; } = "Ctrl+Shift+{N}";
+    /// <summary>Cycle to next selected instance (leader mode). Instant action.</summary>
+    public string CycleInstance { get; set; } = "Tab";
+
+    /// <summary>Return to previous desktop (leader mode). Instant action.</summary>
+    public string QuickBack { get; set; } = "BackQuote";
+
+    /// <summary>Mute/unmute all audio (leader mode). Instant action.</summary>
+    public string MuteAll { get; set; } = "M";
 }
 
 public sealed class SttOptions

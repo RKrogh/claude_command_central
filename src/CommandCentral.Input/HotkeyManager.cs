@@ -1,4 +1,5 @@
 using CommandCentral.Core.Configuration;
+using CommandCentral.Core.Events;
 using CommandCentral.Core.Services;
 using CommandCentral.Input.Platform;
 using Microsoft.Extensions.Logging;
@@ -15,18 +16,24 @@ public sealed class HotkeyManager : IDisposable
     private readonly IInstanceRegistry _registry;
     private readonly IVirtualDesktopService _virtualDesktop;
     private readonly DesktopNavigationContext _navigationContext;
+    private readonly IEventBus _eventBus;
     private readonly ILogger<HotkeyManager> _logger;
 
-    // Parsed bindings
+    // Leader key combo — the only globally intercepted key
+    private readonly KeyCombo _leaderCombo;
+    private readonly int _leaderTimeoutMs;
+
+    // Leader-mode bindings (active only during leader window)
     private readonly Dictionary<KeyCombo, string> _pttBindings = [];
     private readonly Dictionary<KeyCombo, string> _focusBindings = [];
-    private readonly Dictionary<KeyCombo, string> _focusPttBindings = [];
     private readonly KeyCombo _pttSelectedCombo;
     private readonly KeyCombo _cycleCombo;
     private readonly KeyCombo _quickBackCombo;
+    private readonly KeyCombo _muteAllCombo;
 
-    private bool _pttActive;
-    private PttMode _pttMode;
+    // State machine
+    private HotkeyState _state = HotkeyState.Idle;
+    private Timer? _leaderTimer;
     private KeyCode _pttKeyCode;
 
     public HotkeyManager(
@@ -34,6 +41,7 @@ public sealed class HotkeyManager : IDisposable
         IInstanceRegistry registry,
         IVirtualDesktopService virtualDesktop,
         DesktopNavigationContext navigationContext,
+        IEventBus eventBus,
         IOptions<CommandCentralOptions> options,
         ILogger<HotkeyManager> logger)
     {
@@ -41,17 +49,21 @@ public sealed class HotkeyManager : IDisposable
         _registry = registry;
         _virtualDesktop = virtualDesktop;
         _navigationContext = navigationContext;
+        _eventBus = eventBus;
         _logger = logger;
 
         var hotkeys = options.Value.Hotkeys;
 
-        // Parse regular PTT bindings
+        _leaderCombo = KeyCombo.Parse(hotkeys.LeaderKey);
+        _leaderTimeoutMs = hotkeys.LeaderTimeoutMs;
+        _logger.LogDebug("Leader key: {Leader} (timeout: {Timeout}ms)", hotkeys.LeaderKey, _leaderTimeoutMs);
+
         foreach (var (comboStr, instanceId) in hotkeys.PttBindings)
         {
             if (KeyCombo.TryParse(comboStr, out var combo))
             {
                 _pttBindings[combo] = instanceId;
-                _logger.LogDebug("PTT binding: {Combo} → instance {Id}", comboStr, instanceId);
+                _logger.LogDebug("Leader PTT binding: {Combo} → instance {Id}", comboStr, instanceId);
             }
             else
             {
@@ -59,13 +71,12 @@ public sealed class HotkeyManager : IDisposable
             }
         }
 
-        // Parse focus-only bindings (Shift+N → switch to instance N)
         foreach (var (comboStr, instanceId) in hotkeys.FocusBindings)
         {
             if (KeyCombo.TryParse(comboStr, out var combo))
             {
                 _focusBindings[combo] = instanceId;
-                _logger.LogDebug("Focus binding: {Combo} → instance {Id}", comboStr, instanceId);
+                _logger.LogDebug("Leader Focus binding: {Combo} → instance {Id}", comboStr, instanceId);
             }
             else
             {
@@ -73,23 +84,10 @@ public sealed class HotkeyManager : IDisposable
             }
         }
 
-        // Parse Focus PTT bindings (Ctrl+Shift+N → switch + record)
-        foreach (var (comboStr, instanceId) in hotkeys.FocusPttBindings)
-        {
-            if (KeyCombo.TryParse(comboStr, out var combo))
-            {
-                _focusPttBindings[combo] = instanceId;
-                _logger.LogDebug("Focus PTT binding: {Combo} → instance {Id}", comboStr, instanceId);
-            }
-            else
-            {
-                _logger.LogWarning("Invalid Focus PTT binding key combo: {Combo}", comboStr);
-            }
-        }
-
         _pttSelectedCombo = KeyCombo.Parse(hotkeys.PttSelectedInstance);
         _cycleCombo = KeyCombo.Parse(hotkeys.CycleInstance);
         _quickBackCombo = KeyCombo.Parse(hotkeys.QuickBack);
+        _muteAllCombo = KeyCombo.Parse(hotkeys.MuteAll);
 
         _hook = new SimpleGlobalHook();
         _hook.KeyPressed += OnKeyPressed;
@@ -98,8 +96,9 @@ public sealed class HotkeyManager : IDisposable
 
     public Task StartAsync(CancellationToken ct = default)
     {
-        _logger.LogInformation("Hotkey manager starting ({PttCount} PTT + {FocusCount} Focus + {FocusPttCount} Focus PTT bindings)",
-            _pttBindings.Count, _focusBindings.Count, _focusPttBindings.Count);
+        _logger.LogInformation(
+            "Hotkey manager starting (leader: {Leader}, {PttCount} PTT + {FocusCount} Focus bindings)",
+            _leaderCombo, _pttBindings.Count, _focusBindings.Count);
         return _hook.RunAsync();
     }
 
@@ -107,6 +106,7 @@ public sealed class HotkeyManager : IDisposable
     {
         try
         {
+            DeactivateLeader();
             if (_hook.IsRunning)
                 _hook.Stop();
             _logger.LogInformation("Hotkey manager stopped");
@@ -121,89 +121,119 @@ public sealed class HotkeyManager : IDisposable
     {
         var mask = e.RawEvent.Mask;
 
-        if (!_pttActive)
+        switch (_state)
         {
-            // Check Focus PTT bindings first (more specific — has Shift modifier)
-            foreach (var (combo, instanceId) in _focusPttBindings)
-            {
-                if (combo.Matches(mask, e.Data.KeyCode))
-                {
-                    e.SuppressEvent = true;
-                    _pttActive = true;
-                    _pttMode = PttMode.FocusPtt;
-                    _pttKeyCode = e.Data.KeyCode;
-                    _logger.LogDebug("Focus PTT key pressed: {Key} for instance {Id}", e.Data.KeyCode, instanceId);
-                    _ = Task.Run(() => _pttHandler.StartFocusPttAsync(instanceId));
-                    return;
-                }
-            }
+            case HotkeyState.Idle:
+                HandleIdleKeyPress(e, mask);
+                break;
 
-            // Check focus-only bindings (Shift+N → switch desktop, no mic)
-            foreach (var (combo, instanceId) in _focusBindings)
-            {
-                if (combo.Matches(mask, e.Data.KeyCode))
-                {
-                    e.SuppressEvent = true;
-                    _logger.LogDebug("Focus key pressed: {Key} for instance {Id}", e.Data.KeyCode, instanceId);
-                    _ = Task.Run(() => FocusInstanceAsync(instanceId));
-                    return;
-                }
-            }
+            case HotkeyState.LeaderActive:
+                HandleLeaderKeyPress(e, mask);
+                break;
 
-            // Check regular PTT bindings
-            foreach (var (combo, instanceId) in _pttBindings)
-            {
-                if (combo.Matches(mask, e.Data.KeyCode))
-                {
-                    e.SuppressEvent = true;
-                    _pttActive = true;
-                    _pttMode = PttMode.Normal;
-                    _pttKeyCode = e.Data.KeyCode;
-                    _logger.LogDebug("PTT key pressed: {Key} for instance {Id}", e.Data.KeyCode, instanceId);
-                    _ = Task.Run(() => _pttHandler.StartAsync(instanceId));
-                    return;
-                }
-            }
+            case HotkeyState.PttActive:
+                // Suppress all keys while recording
+                e.SuppressEvent = true;
+                break;
+        }
+    }
 
-            // PTT for selected instance (Ctrl+Space)
-            if (_pttSelectedCombo.Matches(mask, e.Data.KeyCode))
+    private void HandleIdleKeyPress(KeyboardHookEventArgs e, EventMask mask)
+    {
+        // Only the leader combo is intercepted globally
+        if (_leaderCombo.Matches(mask, e.Data.KeyCode))
+        {
+            e.SuppressEvent = true;
+            ActivateLeader();
+        }
+    }
+
+    private void HandleLeaderKeyPress(KeyboardHookEventArgs e, EventMask mask)
+    {
+        // Check focus bindings first (Shift+N — more specific)
+        foreach (var (combo, instanceId) in _focusBindings)
+        {
+            if (combo.Matches(mask, e.Data.KeyCode))
             {
                 e.SuppressEvent = true;
-                _pttActive = true;
-                _pttMode = PttMode.Normal;
-                _pttKeyCode = e.Data.KeyCode;
-                _logger.LogDebug("PTT key pressed: {Key} for selected instance", e.Data.KeyCode);
-                _ = Task.Run(() => _pttHandler.StartAsync());
+                DeactivateLeader();
+                _logger.LogDebug("Leader → Focus instance {Id}", instanceId);
+                _ = Task.Run(() => FocusInstanceAsync(instanceId));
                 return;
             }
         }
-        else
+
+        // Check PTT bindings (1-9 — hold to record)
+        foreach (var (combo, instanceId) in _pttBindings)
         {
-            // Suppress key repeat while PTT is active
+            if (combo.Matches(mask, e.Data.KeyCode))
+            {
+                e.SuppressEvent = true;
+                _pttKeyCode = e.Data.KeyCode;
+                _state = HotkeyState.PttActive;
+                CancelLeaderTimer();
+                _logger.LogDebug("Leader → PTT instance {Id}", instanceId);
+                _ = Task.Run(() => _pttHandler.StartAsync(instanceId));
+                return;
+            }
+        }
+
+        // PTT for selected instance (Space — hold to record)
+        if (_pttSelectedCombo.Matches(mask, e.Data.KeyCode))
+        {
             e.SuppressEvent = true;
+            _pttKeyCode = e.Data.KeyCode;
+            _state = HotkeyState.PttActive;
+            CancelLeaderTimer();
+            _logger.LogDebug("Leader → PTT selected instance");
+            _ = Task.Run(() => _pttHandler.StartAsync());
             return;
         }
 
-        // Quick-back (Ctrl+Shift+Backquote)
+        // Quick-back (§)
         if (_quickBackCombo.Matches(mask, e.Data.KeyCode))
         {
             e.SuppressEvent = true;
-            _logger.LogDebug("Quick-back triggered");
+            DeactivateLeader();
+            _logger.LogDebug("Leader → Quick-back");
             _ = Task.Run(() => QuickBackAsync());
             return;
         }
 
-        // Cycle selected instance (Ctrl+Backquote)
+        // Cycle selected instance (`)
         if (_cycleCombo.Matches(mask, e.Data.KeyCode))
         {
             e.SuppressEvent = true;
+            DeactivateLeader();
             CycleSelectedInstance();
+            return;
         }
+
+        // Mute all (M)
+        if (_muteAllCombo.Matches(mask, e.Data.KeyCode))
+        {
+            e.SuppressEvent = true;
+            DeactivateLeader();
+            _logger.LogDebug("Leader → Mute all");
+            // TODO: wire up mute toggle
+            return;
+        }
+
+        // Escape cancels leader mode
+        if (e.Data.KeyCode == KeyCode.VcEscape)
+        {
+            e.SuppressEvent = true;
+            DeactivateLeader();
+            return;
+        }
+
+        // Unknown key — cancel leader mode, do NOT suppress (let it through)
+        DeactivateLeader();
     }
 
     private void OnKeyReleased(object? sender, KeyboardHookEventArgs e)
     {
-        if (!_pttActive)
+        if (_state != HotkeyState.PttActive)
             return;
 
         var isTargetKey = e.Data.KeyCode == _pttKeyCode;
@@ -214,8 +244,8 @@ public sealed class HotkeyManager : IDisposable
         if (isTargetKey || isModifierUp)
         {
             e.SuppressEvent = true;
-            _logger.LogDebug("PTT released (key: {Key}, mode: {Mode})", e.Data.KeyCode, _pttMode);
-            _pttActive = false;
+            _state = HotkeyState.Idle;
+            _logger.LogDebug("PTT released (key: {Key})", e.Data.KeyCode);
             _ = Task.Run(async () =>
             {
                 try
@@ -230,6 +260,41 @@ public sealed class HotkeyManager : IDisposable
         }
     }
 
+    private void ActivateLeader()
+    {
+        _state = HotkeyState.LeaderActive;
+        _leaderTimer?.Dispose();
+        _leaderTimer = new Timer(OnLeaderTimeout, null, _leaderTimeoutMs, Timeout.Infinite);
+        _eventBus.Publish(new DaemonEvent(DaemonEventType.LeaderActivated));
+        _logger.LogDebug("Leader mode activated");
+    }
+
+    private void DeactivateLeader()
+    {
+        if (_state != HotkeyState.LeaderActive)
+            return;
+
+        _state = HotkeyState.Idle;
+        CancelLeaderTimer();
+        _eventBus.Publish(new DaemonEvent(DaemonEventType.LeaderDeactivated));
+        _logger.LogDebug("Leader mode deactivated");
+    }
+
+    private void CancelLeaderTimer()
+    {
+        _leaderTimer?.Dispose();
+        _leaderTimer = null;
+    }
+
+    private void OnLeaderTimeout(object? state)
+    {
+        if (_state == HotkeyState.LeaderActive)
+        {
+            _logger.LogDebug("Leader mode timed out");
+            DeactivateLeader();
+        }
+    }
+
     private async Task FocusInstanceAsync(string instanceId)
     {
         var instance = _registry.GetById(instanceId);
@@ -241,7 +306,6 @@ public sealed class HotkeyManager : IDisposable
 
         try
         {
-            // Save context for quick-back
             if (_virtualDesktop.IsAvailable)
             {
                 var context = _virtualDesktop.GetCurrentContext();
@@ -294,6 +358,7 @@ public sealed class HotkeyManager : IDisposable
     public void Dispose()
     {
         Stop();
+        _leaderTimer?.Dispose();
         if (!_hook.IsDisposed)
             _hook.Dispose();
     }

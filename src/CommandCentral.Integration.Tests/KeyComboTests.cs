@@ -139,4 +139,53 @@ public class KeyComboTests
 
         Assert.Equal(KeyCode.VcBackQuote, combo.Key);
     }
+
+    [Theory]
+    [InlineData("section")]
+    [InlineData("§")]
+    [InlineData("102")]
+    [InlineData("oem102")]
+    public void Parse_SectionKeyAliases(string keyName)
+    {
+        var combo = KeyCombo.Parse(keyName);
+
+        Assert.Equal(EventMask.None, combo.Modifiers);
+        Assert.Equal(KeyCode.Vc102, combo.Key);
+    }
+
+    [Fact]
+    public void Parse_LeaderKey_CtrlShiftSection()
+    {
+        var combo = KeyCombo.Parse("Ctrl+Shift+Section");
+
+        Assert.Equal(EventMask.LeftCtrl | EventMask.LeftShift, combo.Modifiers);
+        Assert.Equal(KeyCode.Vc102, combo.Key);
+    }
+
+    [Fact]
+    public void Parse_NoModifier_SingleKey()
+    {
+        var combo = KeyCombo.Parse("1");
+
+        Assert.Equal(EventMask.None, combo.Modifiers);
+        Assert.Equal(KeyCode.Vc1, combo.Key);
+    }
+
+    [Fact]
+    public void Matches_NoModifier_PlainKey()
+    {
+        var combo = KeyCombo.Parse("1");
+
+        // Plain key with no modifiers held
+        Assert.True(combo.Matches(EventMask.None, KeyCode.Vc1));
+    }
+
+    [Fact]
+    public void Matches_NoModifier_RejectsExtraModifiers()
+    {
+        var combo = KeyCombo.Parse("1");
+
+        // Plain "1" should NOT match when Ctrl is held
+        Assert.False(combo.Matches(EventMask.LeftCtrl, KeyCode.Vc1));
+    }
 }

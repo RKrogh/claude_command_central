@@ -30,7 +30,7 @@ bld/
 Thumbs.db
 desktop.ini
 
-## Models (large binary files)
+## Models (large binary files — top-level only)
 /models/
 *.bin
 *.onnx
