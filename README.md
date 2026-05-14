@@ -76,31 +76,39 @@ Open Claude Code in WSL terminals as usual. Each session auto-registers with the
 
 ### 4. Use PTT
 
-Hold `Ctrl+1`, speak, release — your words appear in instance 1's prompt.
+Press `Ctrl+Shift+Q` (leader key), then hold `1`, speak, release — your words appear in instance 1's prompt.
 
 ## Hotkey Reference
 
-### Push-to-Talk (hold to record)
+All hotkeys use a **leader key** pattern: press `Ctrl+Shift+Q` first to activate a 2-second command window, then press the action key. Only the leader combo is intercepted globally.
+
+### Leader Key
 
 | Key | Action |
 |-----|--------|
-| `Ctrl+1` through `Ctrl+9` | PTT for instance N (buffers if cross-desktop) |
-| `Ctrl+Shift+1` through `Ctrl+Shift+9` | Focus PTT — switch to instance N's desktop + record |
-| `Ctrl+Space` | PTT for selected instance |
+| `Ctrl+Shift+Q` | Activate leader mode (2s window) |
+| `Escape` | Cancel leader mode |
 
-### Navigation
+### Push-to-Talk (leader, then hold to record)
 
 | Key | Action |
 |-----|--------|
-| `Shift+1` through `Shift+9` | Focus instance N (switch desktop, no recording) |
-| `Ctrl+Shift+§` | Quick-back — return to previous desktop |
-| `Ctrl+BackQuote` | Cycle selected instance |
+| `1` through `9` | PTT for instance N (buffers if cross-desktop) |
+| `Space` | PTT for selected instance |
+
+### Navigation (leader, then press)
+
+| Key | Action |
+|-----|--------|
+| `Shift+1` through `Shift+9` | Focus instance N (switch desktop) |
+| `BackQuote` | Quick-back to previous desktop |
+| `Tab` | Cycle selected instance |
+| `M` | Mute/unmute all audio |
 
 ### Cross-Desktop Behavior
 
 - **Same desktop**: PTT injects text immediately
 - **Different desktop**: Text is buffered and auto-injected when you switch to that desktop
-- **Focus PTT** (`Ctrl+Shift+N`): Switches to the desktop first, then records — text injects directly
 
 All bindings are configurable in `appsettings.json`.
 

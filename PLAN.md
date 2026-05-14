@@ -157,14 +157,19 @@ enum InstanceState { Idle, Busy, WaitingForInput, Disconnected }
 
 **Global hotkey registration** via SharpHook (cross-platform, wraps libuio):
 
-| Key | Action |
-|-----|--------|
-| Hold `Ctrl+1` through `Ctrl+9` | PTT for instance N directly |
-| `Ctrl+`` (backtick) | Cycle selected instance |
-| Hold `Ctrl+Space` | PTT for selected instance |
-| `Ctrl+Shift+M` | Mute/unmute (stop all audio) |
+All hotkeys use a **leader key** pattern. Press `Ctrl+Shift+Q` to activate a 2-second
+command window, then press the action key. Only the leader combo is intercepted globally.
 
-*Key bindings are configurable via settings file.*
+| Sequence | Action |
+|----------|--------|
+| Leader, hold `1`-`9` | PTT for instance N directly |
+| Leader, hold `Space` | PTT for selected instance |
+| Leader, `Shift+1`-`Shift+9` | Focus instance N (switch desktop) |
+| Leader, `Tab` | Cycle selected instance |
+| Leader, `BackQuote` | Quick-back to previous desktop |
+| Leader, `M` | Mute/unmute (stop all audio) |
+
+*Leader key and all bindings are configurable via settings file.*
 
 **PTT flow:**
 1. User presses and holds PTT key → mic capture starts (NAudio)
