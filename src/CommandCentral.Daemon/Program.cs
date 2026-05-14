@@ -66,6 +66,10 @@ if (builder.Configuration["COMMANDCENTRAL_HEADLESS_ONLY"] is null &&
 
     // Output services
     builder.Services.AddSingleton<VoiceAssigner>();
+    builder.Services.AddSingleton<IPersonalityManager, PersonalityManager>();
+    builder.Services.AddSingleton<VoxtralEnginePool>();
+    builder.Services.AddSingleton<NotificationCache>();
+    builder.Services.AddSingleton<INotificationCacheWarmer>(sp => sp.GetRequiredService<NotificationCache>());
     builder.Services.AddSingleton<ITtsNotifier, TtsNotifier>();
 
     // Daemon hosted service (starts hotkey listener)
@@ -73,6 +77,14 @@ if (builder.Configuration["COMMANDCENTRAL_HEADLESS_ONLY"] is null &&
 
     // Buffered injection monitor (polls for cross-desktop text ready to inject)
     builder.Services.AddHostedService<BufferedInjectionMonitor>();
+}
+else
+{
+    // Headless mode: register noop implementations for Orchestrator dependencies
+    builder.Services.AddSingleton<ITtsNotifier, NoopTtsNotifier>();
+    builder.Services.AddSingleton<IPersonalityManager, NoopPersonalityManager>();
+    builder.Services.AddSingleton<IKeystrokeInjector, NoopKeystrokeInjector>();
+    builder.Services.AddSingleton<INotificationCacheWarmer, NoopNotificationCacheWarmer>();
 }
 
 var app = builder.Build();

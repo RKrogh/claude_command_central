@@ -16,7 +16,15 @@ public class OrchestratorTests
     public OrchestratorTests()
     {
         _registry = new InMemoryInstanceRegistry(_eventBus);
-        _orchestrator = new Orchestrator(_registry, _eventBus, new NullWindowManager(), NullLogger<Orchestrator>.Instance);
+        _orchestrator = new Orchestrator(
+            _registry,
+            _eventBus,
+            new NullWindowManager(),
+            new NullTtsNotifier(),
+            new NullPersonalityManager(),
+            new NullKeystrokeInjector(),
+            new NullNotificationCacheWarmer(),
+            NullLogger<Orchestrator>.Instance);
     }
 
     private sealed class NullWindowManager : IWindowManager
@@ -25,6 +33,30 @@ public class OrchestratorTests
         public Task FocusWindowAsync(nint windowHandle, CancellationToken ct = default) => Task.CompletedTask;
         public Task<nint> FindWindowByTitleAsync(string titlePattern, CancellationToken ct = default) => Task.FromResult(nint.Zero);
         public Task<IReadOnlyList<WindowInfo>> GetWindowsAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<WindowInfo>>([]);
+    }
+
+    private sealed class NullTtsNotifier : ITtsNotifier
+    {
+        public Task NotifyInstanceReadyAsync(string instanceId, string? voiceProfile = null, CancellationToken ct = default) => Task.CompletedTask;
+        public Task NotifyDoneAsync(string instanceId, CancellationToken ct = default) => Task.CompletedTask;
+        public Task ReadResponseAsync(string text, string? voiceProfile = null, CancellationToken ct = default) => Task.CompletedTask;
+    }
+
+    private sealed class NullPersonalityManager : IPersonalityManager
+    {
+        public PersonalityConfig? GetForSlot(string slotId) => null;
+        public string? ResolveVoiceRefPath(string slotId) => null;
+        public void Reload() { }
+    }
+
+    private sealed class NullKeystrokeInjector : IKeystrokeInjector
+    {
+        public Task InjectTextAsync(nint windowHandle, string text, CancellationToken ct = default) => Task.CompletedTask;
+    }
+
+    private sealed class NullNotificationCacheWarmer : INotificationCacheWarmer
+    {
+        public Task WarmupAsync(string slotId, CancellationToken ct = default) => Task.CompletedTask;
     }
 
     [Fact]

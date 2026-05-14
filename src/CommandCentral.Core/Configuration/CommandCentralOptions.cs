@@ -78,15 +78,49 @@ public sealed class SttOptions
 
 public sealed class TtsOptions
 {
-    public string NotificationEngine { get; set; } = "SherpaOnnx";
-    public string ResponseEngine { get; set; } = "ElevenLabs";
+    public string NotificationEngine { get; set; } = "Voxtral";
+    public string ResponseEngine { get; set; } = "Voxtral";
     public Dictionary<string, VoiceOptions> Voices { get; set; } = new();
+
+    /// <summary>
+    /// Path to the personalities directory. Supports environment variables.
+    /// Default: %APPDATA%\CommandCentral\personalities
+    /// </summary>
+    public string? PersonalitiesPath { get; set; }
+}
+
+public sealed class VoxtralOptions
+{
+    /// <summary>
+    /// Mistral API key. Required for Voxtral engine. Use user-secrets in production.
+    /// </summary>
+    public string? ApiKey { get; set; }
+
+    /// <summary>
+    /// Voxtral model ID. Default: voxtral-mini-tts-2603.
+    /// </summary>
+    public string ModelId { get; set; } = "voxtral-mini-tts-2603";
+
+    /// <summary>
+    /// Enable SSE streaming for lower time-to-first-byte.
+    /// </summary>
+    public bool Stream { get; set; } = true;
+
+    /// <summary>
+    /// Default voice ID when no personality voice ref is configured.
+    /// </summary>
+    public string DefaultVoiceId { get; set; } = "gb_jane_neutral";
+
+    /// <summary>
+    /// Output audio format: wav, mp3, pcm, flac, opus.
+    /// </summary>
+    public string ResponseFormat { get; set; } = "wav";
 }
 
 public sealed class VoiceOptions
 {
     public string Name { get; set; } = "";
-    public string Engine { get; set; } = "SherpaOnnx";
+    public string Engine { get; set; } = "Voxtral";
 }
 
 public sealed class InstanceOptions
@@ -101,5 +135,6 @@ public sealed class CommandCentralOptions
     public HotkeyOptions Hotkeys { get; set; } = new();
     public SttOptions Stt { get; set; } = new();
     public TtsOptions Tts { get; set; } = new();
+    public VoxtralOptions Voxtral { get; set; } = new();
     public InstanceOptions Instances { get; set; } = new();
 }

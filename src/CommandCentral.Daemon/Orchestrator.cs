@@ -10,6 +10,10 @@ public sealed class Orchestrator(
     IInstanceRegistry registry,
     IEventBus eventBus,
     IWindowManager windowManager,
+    ITtsNotifier ttsNotifier,
+    IPersonalityManager personalityManager,
+    IKeystrokeInjector keystrokeInjector,
+    INotificationCacheWarmer notificationCacheWarmer,
     ILogger<Orchestrator> logger) : IOrchestrator
 {
     public async Task HandleSessionStartAsync(HookPayload payload, string? windowMarker = null, CancellationToken ct = default)
@@ -35,17 +39,27 @@ public sealed class Orchestrator(
 
         logger.LogInformation("Registered instance {Id} for session {SessionId} (project: {Project}, window: 0x{Handle:X}, marker: {Marker})",
             instance.Id, payload.SessionId, instance.ProjectName ?? "unknown", windowHandle, windowMarker ?? "none");
+
+        // Inject personality into the Claude session
+        await InjectPersonalityAsync(instance, ct);
+
+        // Play greeting and warm up notification cache
+        _ = Task.Run(async () =>
+        {
+            await ttsNotifier.NotifyInstanceReadyAsync(instance.Id, ct: ct);
+            await WarmupNotificationCacheAsync(instance.Id, ct);
+        }, ct);
     }
 
-    public Task HandleStopAsync(HookPayload payload, CancellationToken ct = default)
+    public async Task HandleStopAsync(HookPayload payload, CancellationToken ct = default)
     {
-        if (payload.SessionId is null) return Task.CompletedTask;
+        if (payload.SessionId is null) return;
 
         var instance = registry.GetBySessionId(payload.SessionId);
         if (instance is null)
         {
             logger.LogDebug("Stop hook for unknown session {SessionId}", payload.SessionId);
-            return Task.CompletedTask;
+            return;
         }
 
         instance.LastAssistantMessage = payload.LastAssistantMessage;
@@ -57,8 +71,8 @@ public sealed class Orchestrator(
 
         logger.LogInformation("Instance {Id} response complete", instance.Id);
 
-        // TODO: trigger TTS notification
-        return Task.CompletedTask;
+        // Play done notification (fire-and-forget, don't block the hook response)
+        _ = ttsNotifier.NotifyDoneAsync(instance.Id, ct);
     }
 
     public Task HandleNotificationAsync(HookPayload payload, CancellationToken ct = default)
@@ -117,6 +131,54 @@ public sealed class Orchestrator(
 
         logger.LogInformation("Instance {Id} deregistered (session {SessionId} ended)", id, payload.SessionId);
         return Task.CompletedTask;
+    }
+
+    private async Task InjectPersonalityAsync(InstanceInfo instance, CancellationToken ct)
+    {
+        var personality = personalityManager.GetForSlot(instance.Id);
+        if (personality?.Personality is null)
+        {
+            logger.LogDebug("No personality configured for slot {Slot}", instance.Id);
+            return;
+        }
+
+        if (instance.WindowHandle == nint.Zero)
+        {
+            logger.LogWarning("Cannot inject personality for slot {Slot}: no window handle", instance.Id);
+            return;
+        }
+
+        var prompt = $"Adopt this personality for all your responses in this session. " +
+                     $"Stay in character at all times. Personality: {personality.Personality}";
+
+        // Small delay to let the session initialize before injecting
+        await Task.Delay(1500, ct);
+
+        try
+        {
+            await keystrokeInjector.InjectTextAsync(instance.WindowHandle, prompt, ct);
+            logger.LogInformation("Injected personality '{Name}' into slot {Slot}", personality.Name, instance.Id);
+
+            eventBus.Publish(new InstanceEvent(
+                InstanceEventType.ActivityLogged, instance.Id,
+                Message: $"Personality loaded: {personality.Name}"));
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to inject personality for slot {Slot}", instance.Id);
+        }
+    }
+
+    private async Task WarmupNotificationCacheAsync(string slotId, CancellationToken ct)
+    {
+        try
+        {
+            await notificationCacheWarmer.WarmupAsync(slotId, ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Notification cache warmup failed for slot {Slot}", slotId);
+        }
     }
 
     private async Task<nint> ResolveWindowHandleAsync(
