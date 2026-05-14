@@ -154,16 +154,26 @@ public sealed class Orchestrator(
             return;
         }
 
-        var prompt = $"Adopt this personality for all your responses in this session. " +
-                     $"Stay in character at all times. Personality: {personality.Personality}";
+        // Build the path to the slot config file and convert to WSL format
+        // so the skill's !`jq` preprocessing can read it from the WSL shell.
+        var configPath = personalityManager.ResolveSlotConfigPath(instance.Id);
+        if (configPath is null)
+        {
+            logger.LogWarning("No config file path for slot {Slot}", instance.Id);
+            return;
+        }
 
-        // Small delay to let the session initialize before injecting
-        await Task.Delay(1500, ct);
+        var wslPath = ToWslPath(configPath);
+        var skillCommand = $"/personality-override {wslPath}";
+
+        // Delay to let the session initialize before injecting
+        await Task.Delay(2000, ct);
 
         try
         {
-            await keystrokeInjector.InjectTextAsync(instance.WindowHandle, prompt, ct);
-            logger.LogInformation("Injected personality '{Name}' into slot {Slot}", personality.Name, instance.Id);
+            await keystrokeInjector.InjectTextAndSubmitAsync(instance.WindowHandle, skillCommand, ct);
+            logger.LogInformation("Injected personality skill '{Name}' into slot {Slot} (path: {Path})",
+                personality.Name, instance.Id, wslPath);
 
             eventBus.Publish(new InstanceEvent(
                 InstanceEventType.ActivityLogged, instance.Id,
@@ -173,6 +183,22 @@ public sealed class Orchestrator(
         {
             logger.LogError(ex, "Failed to inject personality for slot {Slot}", instance.Id);
         }
+    }
+
+    /// <summary>
+    /// Converts a Windows path to a WSL-compatible path.
+    /// E.g., C:\Users\krogh\AppData\... → /mnt/c/Users/krogh/AppData/...
+    /// </summary>
+    private static string ToWslPath(string windowsPath)
+    {
+        if (windowsPath.Length >= 2 && windowsPath[1] == ':')
+        {
+            var driveLetter = char.ToLowerInvariant(windowsPath[0]);
+            var rest = windowsPath[2..].Replace('\\', '/');
+            return $"/mnt/{driveLetter}{rest}";
+        }
+
+        return windowsPath.Replace('\\', '/');
     }
 
     private async Task WarmupNotificationCacheAsync(string slotId, CancellationToken ct)
