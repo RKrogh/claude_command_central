@@ -10,6 +10,7 @@
     <PackageReference Include="TextToVoice.Core" Version="0.1.0" />
     <PackageReference Include="TextToVoice.Engines.ElevenLabs" Version="0.1.0" />
     <PackageReference Include="TextToVoice.Engines.SherpaOnnx" Version="0.1.0" />
+    <PackageReference Include="TextToVoice.Engines.Voxtral" Version="0.1.0-alpha.0.18" />
   </ItemGroup>
 
   <PropertyGroup>
