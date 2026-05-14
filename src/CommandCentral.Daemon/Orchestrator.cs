@@ -40,15 +40,21 @@ public sealed class Orchestrator(
         logger.LogInformation("Registered instance {Id} for session {SessionId} (project: {Project}, window: 0x{Handle:X}, marker: {Marker})",
             instance.Id, payload.SessionId, instance.ProjectName ?? "unknown", windowHandle, windowMarker ?? "none");
 
-        // Inject personality into the Claude session
-        await InjectPersonalityAsync(instance, ct);
-
-        // Play greeting and warm up notification cache
+        // Inject personality and play greeting independently of the hook timeout.
+        // These can take longer than the hook's cancellation token allows.
         _ = Task.Run(async () =>
         {
-            await ttsNotifier.NotifyInstanceReadyAsync(instance.Id, ct: ct);
-            await WarmupNotificationCacheAsync(instance.Id, ct);
-        }, ct);
+            try
+            {
+                await InjectPersonalityAsync(instance, CancellationToken.None);
+                await ttsNotifier.NotifyInstanceReadyAsync(instance.Id);
+                await WarmupNotificationCacheAsync(instance.Id, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Post-registration tasks failed for slot {Slot}", instance.Id);
+            }
+        });
     }
 
     public async Task HandleStopAsync(HookPayload payload, CancellationToken ct = default)
