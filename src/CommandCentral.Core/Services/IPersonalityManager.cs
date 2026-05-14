@@ -19,6 +19,11 @@ public interface IPersonalityManager
     string? ResolveVoiceRefPath(string slotId);
 
     /// <summary>
+    /// Returns the absolute path to the slot config JSON file, or null if it doesn't exist.
+    /// </summary>
+    string? ResolveSlotConfigPath(string slotId);
+
+    /// <summary>
     /// Reloads all personality configs from disk.
     /// </summary>
     void Reload();

@@ -59,6 +59,12 @@ public sealed class PersonalityManager : IPersonalityManager
         return absolutePath;
     }
 
+    public string? ResolveSlotConfigPath(string slotId)
+    {
+        var filePath = Path.Combine(_personalitiesPath, $"slot-{slotId}.json");
+        return File.Exists(filePath) ? filePath : null;
+    }
+
     public void Reload()
     {
         _cache.Clear();

@@ -46,12 +46,14 @@ public class OrchestratorTests
     {
         public PersonalityConfig? GetForSlot(string slotId) => null;
         public string? ResolveVoiceRefPath(string slotId) => null;
+        public string? ResolveSlotConfigPath(string slotId) => null;
         public void Reload() { }
     }
 
     private sealed class NullKeystrokeInjector : IKeystrokeInjector
     {
         public Task InjectTextAsync(nint windowHandle, string text, CancellationToken ct = default) => Task.CompletedTask;
+        public Task InjectTextAndSubmitAsync(nint windowHandle, string text, CancellationToken ct = default) => Task.CompletedTask;
     }
 
     private sealed class NullNotificationCacheWarmer : INotificationCacheWarmer

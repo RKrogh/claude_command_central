@@ -33,4 +33,17 @@ public sealed class KeystrokeInjector(
 
         logger.LogDebug("Injected {Count} characters", text.Length);
     }
+
+    /// <summary>
+    /// Injects text followed by Enter key press (submits the prompt).
+    /// </summary>
+    public async Task InjectTextAndSubmitAsync(nint windowHandle, string text, CancellationToken ct = default)
+    {
+        await InjectTextAsync(windowHandle, text, ct);
+        await Task.Delay(50, ct);
+        _simulator.SimulateKeyPress(SharpHook.Data.KeyCode.VcEnter);
+        await Task.Delay(20, ct);
+        _simulator.SimulateKeyRelease(SharpHook.Data.KeyCode.VcEnter);
+        logger.LogDebug("Submitted with Enter");
+    }
 }
