@@ -13,7 +13,7 @@ public sealed class HotkeyOptions
     /// Only this combo is intercepted globally — all other bindings
     /// are only active during the leader window.
     /// </summary>
-    public string LeaderKey { get; set; } = "Ctrl+Shift+BackQuote";
+    public string LeaderKey { get; set; } = "Ctrl+Shift+Q";
 
     /// <summary>
     /// Timeout in milliseconds before leader mode auto-deactivates.

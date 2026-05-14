@@ -3,7 +3,7 @@
 ## Current Phase: Phase 2 — Multi-Instance + TTS
 
 ### Priority: Hotkey Redesign (DONE)
-- [x] Leader key redesign — only `Ctrl+Shift+BackQuote` (key left of 1) intercepted globally. All other bindings (PTT, focus, cycle, quick-back, mute) activate only during a 2s leader window. State machine: Idle → LeaderActive → PttActive. No more keyboard hijacking. FocusPtt bindings dropped (use focus then PTT separately). KeyCombo.Matches now rejects extra Ctrl modifier for plain-key bindings.
+- [x] Leader key redesign — only `Ctrl+Shift+Q` intercepted globally. All other bindings (PTT, focus, cycle, quick-back, mute) activate only during a 2s leader window. State machine: Idle → LeaderActive → PttActive. No more keyboard hijacking. FocusPtt bindings dropped (use focus then PTT separately). KeyCombo.Matches now rejects extra Ctrl modifier for plain-key bindings.
 
 ### Phase 0: Planning & Setup
 - [x] Architecture design
@@ -71,4 +71,4 @@
 
 ### Known Issues
 - **Window marker unreliable**: Terminal title marker (`cc:<hex>`) fails consistently — Claude Code resets the title before daemon can match. Instance 2+ on the same desktop may get `window: 0x0`. Foreground fallback only claims one window per desktop. Needs a different identification approach.
-- ~~**Key binding conflicts**~~: Resolved — leader key redesign (only `Ctrl+Shift+BackQuote` intercepted globally).
+- ~~**Key binding conflicts**~~: Resolved — leader key redesign (only `Ctrl+Shift+Q` intercepted globally).
