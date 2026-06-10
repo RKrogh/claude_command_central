@@ -25,6 +25,7 @@ builder.Services.AddSingleton<IEventBus, InMemoryEventBus>();
 builder.Services.AddSingleton<IInstanceRegistry>(sp =>
     new InMemoryInstanceRegistry(
         sp.GetRequiredService<IEventBus>(),
+        sp.GetRequiredService<IStateStore>(),
         sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<CommandCentralOptions>>()
             .Value.Instances.MaxInstances));
 builder.Services.AddSingleton<IOrchestrator, Orchestrator>();
@@ -40,6 +41,17 @@ builder.Services.AddSingleton<DesktopNavigationContext>();
 if (builder.Configuration["COMMANDCENTRAL_HEADLESS_ONLY"] is null &&
     Environment.GetEnvironmentVariable("COMMANDCENTRAL_HEADLESS_ONLY") is null)
 {
+    // Persistent state (selected instance, voice assignments) — survives restarts
+    builder.Services.AddSingleton<IStateStore>(sp =>
+    {
+        var configured = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<CommandCentralOptions>>()
+            .Value.Persistence.StateFilePath;
+        var path = string.IsNullOrEmpty(configured)
+            ? JsonStateStore.DefaultStateFilePath
+            : Environment.ExpandEnvironmentVariables(configured);
+        return new JsonStateStore(path, sp.GetRequiredService<ILogger<JsonStateStore>>());
+    });
+
     // STT: VoiceToText + Whisper + NAudio
     var sttConfig = builder.Configuration.GetSection("CommandCentral:Stt");
     builder.Services.AddVoiceToText();
@@ -81,6 +93,7 @@ if (builder.Configuration["COMMANDCENTRAL_HEADLESS_ONLY"] is null &&
 else
 {
     // Headless mode: register noop implementations for Orchestrator dependencies
+    builder.Services.AddSingleton<IStateStore, NoopStateStore>();
     builder.Services.AddSingleton<ITtsNotifier, NoopTtsNotifier>();
     builder.Services.AddSingleton<IPersonalityManager, NoopPersonalityManager>();
     builder.Services.AddSingleton<IKeystrokeInjector, NoopKeystrokeInjector>();

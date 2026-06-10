@@ -123,6 +123,15 @@ public sealed class VoiceOptions
     public string Engine { get; set; } = "Voxtral";
 }
 
+public sealed class PersistenceOptions
+{
+    /// <summary>
+    /// Path to the daemon state file (selected instance, voice assignments).
+    /// Supports environment variables. Default: %LOCALAPPDATA%\CommandCentral\state.json
+    /// </summary>
+    public string? StateFilePath { get; set; }
+}
+
 public sealed class InstanceOptions
 {
     public int MaxInstances { get; set; } = 25;
@@ -137,4 +146,5 @@ public sealed class CommandCentralOptions
     public TtsOptions Tts { get; set; } = new();
     public VoxtralOptions Voxtral { get; set; } = new();
     public InstanceOptions Instances { get; set; } = new();
+    public PersistenceOptions Persistence { get; set; } = new();
 }
