@@ -6,6 +6,7 @@ public sealed class AgentListView : FrameView
 {
     private readonly ListView _list;
     private List<AgentListItem> _agents = [];
+    private bool _updating;
 
     public event Action<string>? AgentSelected;
 
@@ -23,7 +24,7 @@ public sealed class AgentListView : FrameView
 
         _list.SelectedItemChanged += (args) =>
         {
-            if (args.Item >= 0 && args.Item < _agents.Count)
+            if (!_updating && args.Item >= 0 && args.Item < _agents.Count)
                 AgentSelected?.Invoke(_agents[args.Item].Id);
         };
 
@@ -31,27 +32,36 @@ public sealed class AgentListView : FrameView
         {
             X = 0,
             Y = Pos.AnchorEnd(3),
-            Text = "● working  ○ idle  ◐ waiting"
+            Text = "● busy ○ idle ◐ wait  W=window"
         };
 
         var nav = new Label
         {
             X = 0,
             Y = Pos.AnchorEnd(1),
-            Text = "[Q]uit"
+            Text = "[S]ettings  [Q]uit"
         };
 
         Add(_list, legend, nav);
     }
 
-    public void UpdateAgents(IReadOnlyList<AgentListItem> agents)
+    public void UpdateAgents(IReadOnlyList<AgentListItem> agents, string? selectedId)
     {
-        _agents = agents.ToList();
-        _list.SetSource(_agents.Select(a => a.DisplayText).ToList());
+        _updating = true;
+        try
+        {
+            _agents = agents.ToList();
+            _list.SetSource(_agents.Select(a => a.DisplayText).ToList());
+
+            var index = _agents.FindIndex(a => a.Id == selectedId);
+            if (index >= 0)
+                _list.SelectedItem = index;
+        }
+        finally
+        {
+            _updating = false;
+        }
     }
 }
 
-public sealed record AgentListItem(string Id, string Name, string StateIcon)
-{
-    public string DisplayText => $"[{Id}] {Name,-16} {StateIcon}";
-}
+public sealed record AgentListItem(string Id, string DisplayText);
