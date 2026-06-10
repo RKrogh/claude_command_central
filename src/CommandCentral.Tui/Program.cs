@@ -18,7 +18,7 @@ try
 
     // Fast first paint from a plain GET, then live updates over the
     // WebSocket (which re-sends a snapshot on every (re)connect).
-    _ = Task.Run(async () =>
+    var syncTask = Task.Run(async () =>
     {
         var initial = await client.GetStateAsync(cts.Token);
         if (initial is not null)
@@ -26,6 +26,18 @@ try
 
         await eventStream.RunAsync(cts.Token);
     });
+
+    // The sync loop only ends early when an exception escapes the event
+    // stream client's handled set; surface it instead of letting the TUI
+    // sit silently disconnected on a swallowed fault.
+    _ = syncTask.ContinueWith(t =>
+    {
+        store.SetConnected(false);
+        var error = t.Exception?.GetBaseException();
+        Application.MainLoop?.Invoke(() =>
+            MessageBox.ErrorQuery("Daemon sync failed",
+                $"{error?.Message ?? "Unknown error"}\n\nRestart the TUI to reconnect.", "Ok"));
+    }, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
 
     Application.Run();
 }
