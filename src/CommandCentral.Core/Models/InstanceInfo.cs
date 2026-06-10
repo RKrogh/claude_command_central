@@ -16,6 +16,7 @@ public sealed class InstanceInfo
     /// </summary>
     public string? WtSession { get; set; }
 
+    public Guid? DesktopId { get; set; }
     public string? VoiceProfile { get; set; }
     public InstanceState State { get; set; } = InstanceState.Idle;
     public DateTime LastActivity { get; set; } = DateTime.UtcNow;
