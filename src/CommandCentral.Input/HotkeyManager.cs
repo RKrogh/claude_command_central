@@ -1,5 +1,6 @@
 using CommandCentral.Core.Configuration;
 using CommandCentral.Core.Events;
+using CommandCentral.Core.Models;
 using CommandCentral.Core.Services;
 using CommandCentral.Input.Platform;
 using Microsoft.Extensions.Logging;
@@ -15,6 +16,7 @@ public sealed class HotkeyManager : IDisposable
     private readonly PushToTalkHandler _pttHandler;
     private readonly IInstanceRegistry _registry;
     private readonly IVirtualDesktopService _virtualDesktop;
+    private readonly IWindowBindingService _windowBinding;
     private readonly DesktopNavigationContext _navigationContext;
     private readonly IEventBus _eventBus;
     private readonly ILogger<HotkeyManager> _logger;
@@ -30,6 +32,7 @@ public sealed class HotkeyManager : IDisposable
     private readonly KeyCombo _cycleCombo;
     private readonly KeyCombo _quickBackCombo;
     private readonly KeyCombo _muteAllCombo;
+    private readonly KeyCombo _rebindCombo;
 
     // State machine
     private HotkeyState _state = HotkeyState.Idle;
@@ -40,6 +43,7 @@ public sealed class HotkeyManager : IDisposable
         PushToTalkHandler pttHandler,
         IInstanceRegistry registry,
         IVirtualDesktopService virtualDesktop,
+        IWindowBindingService windowBinding,
         DesktopNavigationContext navigationContext,
         IEventBus eventBus,
         IOptions<CommandCentralOptions> options,
@@ -48,6 +52,7 @@ public sealed class HotkeyManager : IDisposable
         _pttHandler = pttHandler;
         _registry = registry;
         _virtualDesktop = virtualDesktop;
+        _windowBinding = windowBinding;
         _navigationContext = navigationContext;
         _eventBus = eventBus;
         _logger = logger;
@@ -88,6 +93,7 @@ public sealed class HotkeyManager : IDisposable
         _cycleCombo = KeyCombo.Parse(hotkeys.CycleInstance);
         _quickBackCombo = KeyCombo.Parse(hotkeys.QuickBack);
         _muteAllCombo = KeyCombo.Parse(hotkeys.MuteAll);
+        _rebindCombo = KeyCombo.Parse(hotkeys.RebindWindow);
 
         _hook = new SimpleGlobalHook();
         _hook.KeyPressed += OnKeyPressed;
@@ -219,6 +225,16 @@ public sealed class HotkeyManager : IDisposable
             return;
         }
 
+        // Rebind selected instance's window to the current foreground window (R)
+        if (_rebindCombo.Matches(mask, e.Data.KeyCode))
+        {
+            e.SuppressEvent = true;
+            DeactivateLeader();
+            _logger.LogDebug("Leader → Rebind window");
+            _ = Task.Run(() => RebindSelectedInstanceAsync());
+            return;
+        }
+
         // Escape cancels leader mode
         if (e.Data.KeyCode == KeyCode.VcEscape)
         {
@@ -295,12 +311,50 @@ public sealed class HotkeyManager : IDisposable
         }
     }
 
+    /// <summary>
+    /// Explicit rebind: the user focuses the correct terminal, then presses
+    /// leader + rebind key to bind it to the selected instance.
+    /// </summary>
+    private async Task RebindSelectedInstanceAsync()
+    {
+        var selectedId = _registry.SelectedInstanceId;
+        var instance = selectedId is null ? null : _registry.GetById(selectedId);
+        if (instance is null)
+        {
+            _logger.LogWarning("Rebind requested but no instance is selected");
+            return;
+        }
+
+        try
+        {
+            if (await _windowBinding.ClaimForegroundAsync(instance, WindowBindingSource.Manual))
+                _logger.LogInformation("Rebound instance {Id} to window 0x{Handle:X}", instance.Id, instance.WindowHandle);
+            else
+                _logger.LogWarning("Rebind failed for instance {Id}: no foreground window", instance.Id);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Rebind instance {Id} failed", instance.Id);
+        }
+    }
+
     private async Task FocusInstanceAsync(string instanceId)
     {
         var instance = _registry.GetById(instanceId);
-        if (instance is null || instance.WindowHandle == nint.Zero)
+        if (instance is null)
         {
-            _logger.LogWarning("Instance {Id} not found or has no window for focus", instanceId);
+            _logger.LogWarning("Instance {Id} not found for focus", instanceId);
+            return;
+        }
+
+        if (instance.WindowHandle == nint.Zero)
+        {
+            // No binding yet — the user is most likely sitting in this
+            // instance's terminal, so claim it instead of switching desktops.
+            if (await _windowBinding.ClaimForegroundAsync(instance, WindowBindingSource.FocusClaim))
+                _logger.LogInformation("Instance {Id} had no window — bound current foreground instead of focusing", instanceId);
+            else
+                _logger.LogWarning("Instance {Id} has no window and no foreground window to claim", instanceId);
             return;
         }
 
