@@ -58,24 +58,38 @@ public sealed class DaemonEventStreamClient(string baseUrl, TuiStateStore store)
     private async Task ReceiveLoopAsync(ClientWebSocket socket, CancellationToken ct)
     {
         var buffer = new byte[64 * 1024];
-        var builder = new StringBuilder();
 
         while (socket.State == WebSocketState.Open && !ct.IsCancellationRequested)
         {
-            var result = await socket.ReceiveAsync(buffer, ct);
-            if (result.MessageType == WebSocketMessageType.Close)
+            var json = await ReceiveTextMessageAsync(socket, buffer, ct);
+            if (json is null)
                 return;
-
-            builder.Append(Encoding.UTF8.GetString(buffer, 0, result.Count));
-            if (!result.EndOfMessage)
-                continue;
-
-            var json = builder.ToString();
-            builder.Clear();
 
             var message = JsonSerializer.Deserialize<EventStreamMessage>(json, JsonOptions);
             if (message is not null)
                 store.Apply(message);
+        }
+    }
+
+    /// <summary>
+    /// Reads one complete text message from the socket. Raw bytes are
+    /// accumulated across fragments and decoded once at end-of-message, so a
+    /// multi-byte UTF-8 character split across a fragment boundary survives
+    /// intact. Returns <c>null</c> when the peer closes the connection.
+    /// </summary>
+    internal static async Task<string?> ReceiveTextMessageAsync(WebSocket socket, byte[] buffer, CancellationToken ct)
+    {
+        using var accumulator = new MemoryStream();
+
+        while (true)
+        {
+            var result = await socket.ReceiveAsync(buffer, ct);
+            if (result.MessageType == WebSocketMessageType.Close)
+                return null;
+
+            accumulator.Write(buffer, 0, result.Count);
+            if (result.EndOfMessage)
+                return Encoding.UTF8.GetString(accumulator.GetBuffer(), 0, (int)accumulator.Length);
         }
     }
 

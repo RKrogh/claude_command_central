@@ -117,6 +117,28 @@ public class EventsEndpointTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+    public async Task FragmentedMultiByteMessage_DecodesIntact()
+    {
+        // Activity full of two-byte UTF-8 chars, received with a tiny buffer
+        // so the message arrives in many partial fragments whose boundaries
+        // routinely fall inside a multi-byte sequence. Per-fragment decoding
+        // would corrupt the JSON; accumulate-then-decode must survive it.
+        // 60 chars: the prompt preview truncation limit, so the full prompt
+        // text lands in the activity log.
+        var prompt = string.Concat(Enumerable.Repeat("åäö", 20));
+        await RegisterInstanceAsync("ws-utf8-1", "/project/blåbär");
+        await _client.PostAsJsonAsync("/hooks/prompt-submit",
+            new HookPayload { SessionId = "ws-utf8-1", Prompt = prompt });
+
+        using var socket = await ConnectAsync();
+        var message = await ReceiveMessageAsync(socket, bufferSize: 7);
+
+        Assert.Equal(EventStreamMessageKind.Snapshot, message.Kind);
+        var instance = message.Snapshot!.Instances.First(i => i.SessionId == "ws-utf8-1");
+        Assert.Contains(instance.RecentActivity, e => e.Message.Contains(prompt));
+    }
+
+    [Fact]
     public async Task State_IncludesWindowBindingAndActivity()
     {
         await RegisterInstanceAsync("ws-state-1", "/project/statey");
@@ -144,23 +166,27 @@ public class EventsEndpointTests : IClassFixture<WebApplicationFactory<Program>>
             CancellationToken.None);
     }
 
-    private static async Task<EventStreamMessage> ReceiveMessageAsync(WebSocket socket)
+    private static async Task<EventStreamMessage> ReceiveMessageAsync(WebSocket socket, int bufferSize = 64 * 1024)
     {
         using var cts = new CancellationTokenSource(ReceiveTimeout);
-        var buffer = new byte[64 * 1024];
-        var builder = new StringBuilder();
+        var buffer = new byte[bufferSize];
+        using var accumulator = new MemoryStream();
 
+        // Accumulate raw bytes and decode once at end-of-message; decoding
+        // per fragment would corrupt multi-byte UTF-8 chars split across a
+        // fragment boundary.
         while (true)
         {
             var result = await socket.ReceiveAsync(buffer, cts.Token);
             Assert.Equal(WebSocketMessageType.Text, result.MessageType);
-            builder.Append(Encoding.UTF8.GetString(buffer, 0, result.Count));
+            accumulator.Write(buffer, 0, result.Count);
 
             if (result.EndOfMessage)
                 break;
         }
 
-        var message = JsonSerializer.Deserialize<EventStreamMessage>(builder.ToString(), JsonOptions);
+        var json = Encoding.UTF8.GetString(accumulator.GetBuffer(), 0, (int)accumulator.Length);
+        var message = JsonSerializer.Deserialize<EventStreamMessage>(json, JsonOptions);
         Assert.NotNull(message);
         return message;
     }
