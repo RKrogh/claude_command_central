@@ -41,7 +41,7 @@
 - [x] Configurable PTT hotkeys — default Ctrl+0-9, user-definable combos (done in Phase 1)
 - [x] Selected-instance mode Ctrl+Space (done in Phase 1)
 - [x] Instance state tracking (done in Phase 1)
-- [x] Window targeting via terminal marker (partially working — see Known Issues)
+- [x] Window targeting via foreground-claim binding (prompt-submit claim + PTT/focus claim + leader+R rebind; title marker kept as best effort)
 - [x] Window focus + keystroke injection (AttachThreadInput + SetForegroundWindow)
 - [x] GetForegroundWindow capture as fallback
 - [x] Virtual desktop awareness (IVirtualDesktopManager COM interop)
@@ -70,5 +70,5 @@
 - [ ] Persistent config across daemon restarts
 
 ### Known Issues
-- **Window marker unreliable**: Terminal title marker (`cc:<hex>`) fails consistently — Claude Code resets the title before daemon can match. Instance 2+ on the same desktop may get `window: 0x0`. Foreground fallback only claims one window per desktop. Needs a different identification approach.
+- ~~**Window marker unreliable**~~: Resolved — foreground-claim binding. The title marker stays as best effort, but the binding is now claimed/refreshed from the foreground window on every UserPromptSubmit hook (the user just typed in that terminal), on PTT/focus against an unbound instance, and via an explicit rebind hotkey (leader, then `R`). Session-start foreground fallback now also claims for instance 2+ (shared handles allowed). Remaining limitation: two instances in tabs of the same Windows Terminal window share one HWND and cannot be targeted individually — WT_SESSION is captured per instance for diagnostics (`/api/state`), but Windows exposes no WT_SESSION → tab mapping.
 - ~~**Key binding conflicts**~~: Resolved — leader key redesign (only `Ctrl+Shift+Q` intercepted globally).

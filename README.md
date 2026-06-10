@@ -104,6 +104,7 @@ All hotkeys use a **leader key** pattern: press `Ctrl+Shift+Q` first to activate
 | `BackQuote` | Quick-back to previous desktop |
 | `Tab` | Cycle selected instance |
 | `M` | Mute/unmute all audio |
+| `R` | Rebind selected instance to the current foreground window |
 
 ### Cross-Desktop Behavior
 
@@ -111,6 +112,27 @@ All hotkeys use a **leader key** pattern: press `Ctrl+Shift+Q` first to activate
 - **Different desktop**: Text is buffered and auto-injected when you switch to that desktop
 
 All bindings are configurable in `appsettings.json`.
+
+## Window Identification
+
+The daemon needs to know which terminal window belongs to each instance. Claude Code
+overwrites the terminal title, so title markers alone are unreliable. Instead, the daemon
+binds windows from user activity (foreground-claim binding):
+
+1. **Session start**: title marker match (best effort), otherwise the foreground window
+   is claimed — you just launched Claude Code in that terminal.
+2. **Every prompt submit**: the binding is refreshed from the foreground window. You just
+   typed in that terminal, so this is the strongest signal and self-heals wrong bindings.
+3. **PTT/focus on an unbound instance**: claims the foreground window as a last resort.
+4. **Manual rebind**: focus the correct terminal, then leader + `R` to bind it to the
+   selected instance.
+
+Check current bindings via `GET /api/state` (`window`, `windowBindingSource`, `wtSession`).
+
+**Limitation**: two instances running in tabs of the *same* Windows Terminal window share
+one OS window handle and cannot be targeted individually — keystrokes go to whichever tab
+is active. Run instances in separate windows for reliable targeting. The Windows Terminal
+tab GUID (`WT_SESSION`) is recorded per instance for diagnostics.
 
 ## Optional: Attach TUI
 
@@ -188,7 +210,7 @@ bash scripts/install-hooks.sh --check
 
 ## Known Limitations
 
-- **Window identification**: Terminal marker approach is unreliable when multiple sessions share a desktop. First session works; subsequent sessions may not get a window handle. Active investigation.
+- **Terminal tabs share a window handle**: Instances in tabs of the same Windows Terminal window cannot be targeted individually (see Window Identification). Use separate windows.
 - **Key conflicts**: Global hotkeys intercept keys system-wide. `Shift+1` blocks `!` on Nordic keyboards. A prefix-key design is planned.
 - **Windows-only**: Daemon requires Windows for Win32 APIs (hotkeys, window management, virtual desktops). The architecture supports future platform adapters.
 
