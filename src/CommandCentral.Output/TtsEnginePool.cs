@@ -103,7 +103,9 @@ public sealed class TtsEnginePool(
         }
     }
 
-    private EngineKind ConfiguredKind => options.Value.Tts.NotificationEngine.Trim() switch
+    // Config binding can null out NotificationEngine despite the non-nullable
+    // declaration; treat null as "not set" and use the option's default.
+    private EngineKind ConfiguredKind => (options.Value.Tts.NotificationEngine?.Trim() ?? "SherpaOnnx") switch
     {
         "" => EngineKind.Disabled,
         var e when e.Equals("Disabled", StringComparison.OrdinalIgnoreCase) => EngineKind.Disabled,

@@ -45,6 +45,17 @@ public class TtsEnginePoolTests : IDisposable
     }
 
     [Fact]
+    public void GetOrCreate_NullEngineConfig_DefaultsToSherpaWithoutThrowing()
+    {
+        // Config binding can explicitly null out the value; must not NRE.
+        var pool = CreatePool(null!);
+
+        Assert.Null(pool.GetOrCreate("1"));
+        Assert.Equal("sherpa:none", pool.GetVoiceCacheKey("1"));
+        Assert.Equal(0, _logger.Count(LogLevel.Warning));
+    }
+
+    [Fact]
     public void GetOrCreate_UnknownEngine_ReturnsNullAndWarnsOnce()
     {
         var pool = CreatePool("Festival");
