@@ -1,6 +1,7 @@
 using CommandCentral.Core.Models;
 using CommandCentral.Core.Services;
 using Microsoft.Extensions.Logging;
+using TextToVoice.Core;
 
 namespace CommandCentral.Output.Tests;
 
@@ -45,6 +46,25 @@ internal sealed class TestLogger<T> : ILogger<T>
     {
         Entries.Add((logLevel, formatter(state, exception)));
     }
+}
+
+/// <summary>
+/// No-op TTS engine that tracks disposal, for pool lifecycle tests.
+/// </summary>
+internal sealed class StubTtsEngine : ITtsEngine
+{
+    public bool Disposed { get; private set; }
+
+    public Task SpeakAsync(string text, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task<byte[]> SynthesizeToAudioAsync(string text, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Array.Empty<byte>());
+    public Task SaveToFileAsync(string text, string filePath, CancellationToken cancellationToken = default) =>
+        Task.CompletedTask;
+    public IReadOnlyList<VoiceInfo> GetAvailableVoices() => [];
+    public void SetVoice(string voiceName) { }
+    public void SetRate(int rate) { }
+    public void SetVolume(int volume) { }
+    public void Dispose() => Disposed = true;
 }
 
 internal sealed class StubPersonalityManager : IPersonalityManager

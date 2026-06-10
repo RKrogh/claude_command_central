@@ -10,39 +10,68 @@ namespace CommandCentral.Output;
 /// <summary>
 /// Manages local sherpa-onnx (Piper VITS) TTS engines, one per voice model.
 /// Each slot resolves to a voice via <see cref="VoiceAssigner"/>; if that
-/// voice's model is not downloaded, the default voice is used, then any
-/// available model. With no models at all, TTS degrades gracefully:
-/// GetOrCreate returns null and a single warning explains what to download.
+/// voice's model is not downloaded (or fails to load), the default voice is
+/// used, then any available model. With no models at all, TTS degrades
+/// gracefully: GetOrCreate returns null and a single warning explains what
+/// to download.
 /// </summary>
+/// <remarks>
+/// <paramref name="engineFactory"/> is a test seam; production resolves it
+/// to null from DI and creates real <see cref="SherpaOnnxEngine"/> instances.
+/// </remarks>
 public sealed class SherpaOnnxEnginePool(
     IOptions<CommandCentralOptions> options,
     VoiceAssigner voiceAssigner,
-    ILogger<SherpaOnnxEnginePool> logger) : IDisposable
+    ILogger<SherpaOnnxEnginePool> logger,
+    Func<PiperModelLocator.PiperModel, ITtsEngine>? engineFactory = null) : IDisposable
 {
     public const string DownloadBaseUrl =
         "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models";
 
-    private readonly ConcurrentDictionary<string, ITtsEngine?> _enginesByVoice = new();
+    // Lazy with ExecutionAndPublication guarantees the factory runs at most
+    // once per voice, so a concurrent GetOrAdd race can't leak a second
+    // native engine that nobody disposes.
+    private readonly ConcurrentDictionary<string, Lazy<ITtsEngine?>> _enginesByVoice = new();
     private int _warnedNoModels;
-    private bool _disposed;
+    private volatile bool _disposed;
 
     public ITtsEngine? GetOrCreate(string slotId)
     {
-        var model = ResolveModelForSlot(slotId);
-        if (model is null)
-        {
-            WarnOnceNoModels();
+        if (_disposed)
             return null;
+
+        var anyCandidate = false;
+        foreach (var model in ResolveModelCandidates(slotId))
+        {
+            anyCandidate = true;
+            var engine = GetOrCreateEngine(model);
+            if (engine is not null)
+                return engine;
+
+            // This voice failed to load (error already logged once for it);
+            // fall through to the next candidate in the chain.
         }
 
-        return _enginesByVoice.GetOrAdd(model.Voice, _ => CreateEngine(model));
+        if (!anyCandidate)
+            WarnOnceNoModels();
+
+        return null;
     }
 
     /// <summary>
-    /// The voice a slot currently resolves to, or "none" if no model is available.
+    /// The voice a slot currently resolves to, skipping voices whose models
+    /// are known to have failed loading, or "none" if no model is available.
     /// </summary>
-    public string ResolveVoiceKey(string slotId) =>
-        ResolveModelForSlot(slotId)?.Voice ?? "none";
+    public string ResolveVoiceKey(string slotId)
+    {
+        foreach (var model in ResolveModelCandidates(slotId))
+        {
+            if (!IsKnownFailed(model.Voice))
+                return model.Voice;
+        }
+
+        return "none";
+    }
 
     /// <summary>
     /// True if at least one complete voice model is present in the models directory.
@@ -65,37 +94,81 @@ public sealed class SherpaOnnxEnginePool(
         if (_disposed) return;
         _disposed = true;
 
-        foreach (var engine in _enginesByVoice.Values)
-            engine?.Dispose();
+        foreach (var lazy in _enginesByVoice.Values)
+        {
+            if (lazy.IsValueCreated)
+                lazy.Value?.Dispose();
+        }
 
         _enginesByVoice.Clear();
     }
 
-    private PiperModelLocator.PiperModel? ResolveModelForSlot(string slotId)
+    private ITtsEngine? GetOrCreateEngine(PiperModelLocator.PiperModel model)
     {
-        var local = options.Value.LocalTts;
-        var voice = voiceAssigner.AssignVoice(slotId);
+        if (_disposed)
+            return null;
 
-        var model = PiperModelLocator.Locate(local.ModelsDir, voice);
-        if (model is not null)
-            return model;
+        var lazy = _enginesByVoice.GetOrAdd(
+            model.Voice,
+            _ => new Lazy<ITtsEngine?>(
+                () => CreateEngine(model),
+                LazyThreadSafetyMode.ExecutionAndPublication));
 
-        // Assigned voice not downloaded — fall back to the default voice
-        model = PiperModelLocator.Locate(local.ModelsDir, local.DefaultVoice);
-        if (model is not null)
+        var engine = lazy.Value;
+
+        if (_disposed)
         {
-            logger.LogDebug(
-                "Voice '{Voice}' for slot {Slot} not downloaded; using default voice '{Default}'",
-                voice, slotId, local.DefaultVoice);
-            return model;
+            // Engine creation raced with Dispose — don't let it escape disposal.
+            if (_enginesByVoice.TryRemove(model.Voice, out var removed) && removed.IsValueCreated)
+                removed.Value?.Dispose();
+            return null;
         }
 
-        // Last resort: any complete model in the directory
-        var available = PiperModelLocator.ListAvailableVoices(local.ModelsDir);
-        return available.Count > 0
-            ? PiperModelLocator.Locate(local.ModelsDir, available[0])
-            : null;
+        return engine;
     }
+
+    /// <summary>
+    /// Candidate models for a slot, in fallback order: assigned voice →
+    /// default voice → any other available model. Duplicates are skipped.
+    /// </summary>
+    private IEnumerable<PiperModelLocator.PiperModel> ResolveModelCandidates(string slotId)
+    {
+        var local = options.Value.LocalTts;
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var voice = voiceAssigner.AssignVoice(slotId);
+
+        var assigned = PiperModelLocator.Locate(local.ModelsDir, voice);
+        if (assigned is not null)
+        {
+            seen.Add(assigned.Voice);
+            yield return assigned;
+        }
+        else
+        {
+            logger.LogDebug(
+                "Voice '{Voice}' for slot {Slot} not downloaded; falling back to default voice '{Default}'",
+                voice, slotId, local.DefaultVoice);
+        }
+
+        if (seen.Add(local.DefaultVoice) &&
+            PiperModelLocator.Locate(local.ModelsDir, local.DefaultVoice) is { } fallback)
+        {
+            yield return fallback;
+        }
+
+        // Last resort: any complete model in the directory.
+        foreach (var available in PiperModelLocator.ListAvailableVoices(local.ModelsDir))
+        {
+            if (seen.Add(available) &&
+                PiperModelLocator.Locate(local.ModelsDir, available) is { } model)
+            {
+                yield return model;
+            }
+        }
+    }
+
+    private bool IsKnownFailed(string voice) =>
+        _enginesByVoice.TryGetValue(voice, out var lazy) && lazy.IsValueCreated && lazy.Value is null;
 
     private ITtsEngine? CreateEngine(PiperModelLocator.PiperModel model)
     {
@@ -103,14 +176,16 @@ public sealed class SherpaOnnxEnginePool(
 
         try
         {
-            var engine = new SherpaOnnxEngine(new SherpaOnnxOptions
-            {
-                ModelPath = model.ModelPath,
-                TokensPath = model.TokensPath,
-                DataDir = model.DataDir,
-                LengthScale = local.LengthScale,
-                NumThreads = local.NumThreads
-            });
+            var engine = engineFactory is not null
+                ? engineFactory(model)
+                : new SherpaOnnxEngine(new SherpaOnnxOptions
+                {
+                    ModelPath = model.ModelPath,
+                    TokensPath = model.TokensPath,
+                    DataDir = model.DataDir,
+                    LengthScale = local.LengthScale,
+                    NumThreads = local.NumThreads
+                });
 
             logger.LogInformation("Loaded local TTS voice '{Voice}' from {Path}", model.Voice, model.ModelPath);
             return engine;
