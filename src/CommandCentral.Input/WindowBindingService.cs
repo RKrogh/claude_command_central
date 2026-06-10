@@ -46,6 +46,19 @@ public sealed class WindowBindingService(
 
     public async Task<bool> ClaimForegroundAsync(InstanceInfo instance, WindowBindingSource source, CancellationToken ct = default)
     {
+        // Manual bindings are sticky: the user explicitly chose that window,
+        // so automatic claims must not overwrite it. IWindowManager has no
+        // reliable handle-validity check (GetWindowsAsync only enumerates
+        // visible, titled windows), so the binding stays until the user
+        // rebinds manually or the instance unregisters.
+        if (instance.WindowBindingSource == WindowBindingSource.Manual
+            && source != WindowBindingSource.Manual)
+        {
+            logger.LogDebug("Skipping {Source} claim for instance {Id} — manual binding 0x{Handle:X} is sticky",
+                source, instance.Id, instance.WindowHandle);
+            return false;
+        }
+
         var foreground = await windowManager.GetForegroundWindowAsync(ct);
         if (foreground == nint.Zero)
         {

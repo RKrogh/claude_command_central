@@ -89,7 +89,7 @@ public class WindowBindingServiceTests
     }
 
     [Fact]
-    public async Task ClaimForeground_RebindsExistingBinding()
+    public async Task ClaimForeground_PromptSubmitOverwritesSessionStartClaim()
     {
         var instance = RegisterInstance();
         instance.WindowHandle = 0x100;
@@ -108,13 +108,43 @@ public class WindowBindingServiceTests
     {
         var instance = RegisterInstance();
         instance.WindowHandle = 0x100;
-        instance.WindowBindingSource = WindowBindingSource.Manual;
+        instance.WindowBindingSource = WindowBindingSource.SessionStartForeground;
         _windowManager.ForegroundWindow = nint.Zero;
 
         var claimed = await _service.ClaimForegroundAsync(instance, WindowBindingSource.PromptSubmit);
 
         Assert.False(claimed);
         Assert.Equal(0x100, instance.WindowHandle);
+        Assert.Equal(WindowBindingSource.SessionStartForeground, instance.WindowBindingSource);
+    }
+
+    [Fact]
+    public async Task ClaimForeground_ManualBindingSurvivesPromptSubmit()
+    {
+        var instance = RegisterInstance();
+        instance.WindowHandle = 0x100;
+        instance.WindowBindingSource = WindowBindingSource.Manual;
+        _windowManager.ForegroundWindow = 0x500;
+
+        var claimed = await _service.ClaimForegroundAsync(instance, WindowBindingSource.PromptSubmit);
+
+        Assert.False(claimed);
+        Assert.Equal(0x100, instance.WindowHandle);
+        Assert.Equal(WindowBindingSource.Manual, instance.WindowBindingSource);
+    }
+
+    [Fact]
+    public async Task ClaimForeground_ManualRebindReplacesManualBinding()
+    {
+        var instance = RegisterInstance();
+        instance.WindowHandle = 0x100;
+        instance.WindowBindingSource = WindowBindingSource.Manual;
+        _windowManager.ForegroundWindow = 0x500;
+
+        var claimed = await _service.ClaimForegroundAsync(instance, WindowBindingSource.Manual);
+
+        Assert.True(claimed);
+        Assert.Equal(0x500, instance.WindowHandle);
         Assert.Equal(WindowBindingSource.Manual, instance.WindowBindingSource);
     }
 }

@@ -22,8 +22,12 @@ public interface IWindowBindingService
 
     /// <summary>
     /// Binds the current foreground window to the instance, replacing any
-    /// existing binding. Returns false if no foreground window is available
-    /// (the existing binding is then left untouched).
+    /// existing automatic binding. A <see cref="WindowBindingSource.Manual"/>
+    /// binding is sticky: automatic sources never overwrite it (there is no
+    /// reliable way to check whether the manually bound handle is still valid,
+    /// so it persists until the user rebinds manually or the instance
+    /// unregisters). Returns false if the claim was skipped or no foreground
+    /// window is available (the existing binding is then left untouched).
     /// </summary>
     Task<bool> ClaimForegroundAsync(InstanceInfo instance, WindowBindingSource source, CancellationToken ct = default);
 }

@@ -108,12 +108,20 @@ public sealed class Orchestrator(
         if (wtSession is not null)
             instance.WtSession = wtSession;
 
+        registry.UpdateState(payload.SessionId, InstanceState.Busy);
+
         // Strongest window signal available: the user just submitted a prompt
         // in this instance's terminal, so the foreground window IS that
-        // terminal. Claim/refresh the binding every time.
-        await windowBinding.ClaimForegroundAsync(instance, WindowBindingSource.PromptSubmit, ct);
-
-        registry.UpdateState(payload.SessionId, InstanceState.Busy);
+        // terminal. Claim/refresh the binding every time. Best effort — a
+        // failed claim must never break hook processing.
+        try
+        {
+            await windowBinding.ClaimForegroundAsync(instance, WindowBindingSource.PromptSubmit, ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Foreground window claim failed for instance {Id} on prompt submit", instance.Id);
+        }
 
         var promptPreview = payload.Prompt is { Length: > 60 }
             ? payload.Prompt[..60] + "..."
