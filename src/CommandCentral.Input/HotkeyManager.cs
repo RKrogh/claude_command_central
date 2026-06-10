@@ -328,9 +328,25 @@ public sealed class HotkeyManager : IDisposable
         try
         {
             if (await _windowBinding.ClaimForegroundAsync(instance, WindowBindingSource.Manual))
+            {
                 _logger.LogInformation("Rebound instance {Id} to window 0x{Handle:X}", instance.Id, instance.WindowHandle);
+
+                // The binding moved to a new window; the desktop id captured
+                // earlier may now be stale. Refresh before announcing.
+                if (_virtualDesktop.IsAvailable && instance.WindowHandle != nint.Zero)
+                {
+                    var desktopId = _virtualDesktop.GetWindowDesktopId(instance.WindowHandle);
+                    instance.DesktopId = desktopId == Guid.Empty ? null : desktopId;
+                }
+
+                _eventBus.Publish(new InstanceEvent(
+                    InstanceEventType.ActivityLogged, instance.Id,
+                    Message: $"Window rebound manually (0x{instance.WindowHandle:X})"));
+            }
             else
+            {
                 _logger.LogWarning("Rebind failed for instance {Id}: no foreground window", instance.Id);
+            }
         }
         catch (Exception ex)
         {
