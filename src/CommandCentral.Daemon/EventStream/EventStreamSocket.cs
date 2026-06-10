@@ -15,18 +15,26 @@ public sealed class EventStreamSocket(
     IInstanceRegistry registry,
     InstanceActivityLog activityLog,
     IEventBus eventBus,
-    ILogger logger)
+    ILogger logger,
+    int channelCapacity = 256)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     public async Task RunAsync(WebSocket socket, CancellationToken ct)
     {
         // Bounded queue so a stalled client can't grow memory without limit.
-        var channel = Channel.CreateBounded<EventStreamMessage>(new BoundedChannelOptions(256)
-        {
-            FullMode = BoundedChannelFullMode.DropOldest,
-            SingleReader = true
-        });
+        // Dropping is not free, though: losing a Removed or
+        // SelectedInstanceChanged event would leave the client permanently
+        // stale, so any drop schedules a fresh snapshot that supersedes
+        // whatever was lost.
+        var resyncNeeded = 0;
+        var channel = Channel.CreateBounded<EventStreamMessage>(
+            new BoundedChannelOptions(channelCapacity)
+            {
+                FullMode = BoundedChannelFullMode.DropOldest,
+                SingleReader = true
+            },
+            _ => Interlocked.Exchange(ref resyncNeeded, 1));
 
         using var instanceSubscription = eventBus.SubscribeInstances(instanceEvent =>
             channel.Writer.TryWrite(new EventStreamMessage
@@ -60,6 +68,19 @@ public sealed class EventStreamSocket(
             {
                 while (channel.Reader.TryRead(out var message))
                     await SendAsync(socket, message, cts.Token);
+
+                // Events were dropped while the queue was full — the client
+                // may have missed something it can't recover from, so send a
+                // fresh snapshot built after the drained backlog.
+                if (Interlocked.Exchange(ref resyncNeeded, 0) == 1)
+                {
+                    logger.LogDebug("Event stream queue overflowed; resyncing client with a snapshot");
+                    await SendAsync(socket, new EventStreamMessage
+                    {
+                        Kind = EventStreamMessageKind.Snapshot,
+                        Snapshot = ApiMapper.BuildSnapshot(registry, activityLog)
+                    }, cts.Token);
+                }
             }
         }
         catch (OperationCanceledException)
