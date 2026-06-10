@@ -93,6 +93,11 @@ var app = builder.Build();
 
 // Instantiate eagerly so it subscribes to the event bus before the first
 // hook arrives — otherwise early activity would be missing from the log.
+// This must also happen before the server accepts connections: the bus
+// dispatches in subscription order, so subscribing the activity log first
+// guarantees every EventStreamSocket (subscribed per connection, later)
+// builds its event DTOs *after* the log has recorded the event, keeping
+// RecentActivity in sync with the event being relayed.
 _ = app.Services.GetRequiredService<InstanceActivityLog>();
 
 app.UseWebSockets();
