@@ -31,6 +31,7 @@ builder.Services.AddSingleton<IOrchestrator, Orchestrator>();
 
 // Platform services — needed by Orchestrator and input pipeline
 builder.Services.AddSingleton<IWindowManager, WindowsWindowManager>();
+builder.Services.AddSingleton<IWindowBindingService, WindowBindingService>();
 builder.Services.AddSingleton<IVirtualDesktopService, WindowsVirtualDesktopService>();
 builder.Services.AddSingleton<InjectionBuffer>();
 builder.Services.AddSingleton<DesktopNavigationContext>();

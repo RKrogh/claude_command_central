@@ -97,6 +97,47 @@ public class HookEndpointTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+    public async Task SessionStart_StoresWtSessionFromQuery()
+    {
+        var payload = new HookPayload { SessionId = "test-wts-1" };
+
+        var response = await _client.PostAsJsonAsync("/hooks/session-start?wm=abcd&wts=guid-123", payload);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var state = await _client.GetFromJsonAsync<StateResponse>("/api/state");
+        var instance = state!.Instances.First(i => i.SessionId == "test-wts-1");
+        Assert.Equal("guid-123", instance.WtSession);
+    }
+
+    [Fact]
+    public async Task PromptSubmit_UpdatesWtSessionFromQuery()
+    {
+        await _client.PostAsJsonAsync("/hooks/session-start", new HookPayload { SessionId = "test-wts-2" });
+
+        var response = await _client.PostAsJsonAsync(
+            "/hooks/prompt-submit?wts=guid-456",
+            new HookPayload { SessionId = "test-wts-2", Prompt = "x" });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var state = await _client.GetFromJsonAsync<StateResponse>("/api/state");
+        var instance = state!.Instances.First(i => i.SessionId == "test-wts-2");
+        Assert.Equal("guid-456", instance.WtSession);
+    }
+
+    [Fact]
+    public async Task State_ExposesWindowBindingDiagnostics()
+    {
+        await _client.PostAsJsonAsync("/hooks/session-start", new HookPayload { SessionId = "test-diag-1" });
+
+        var state = await _client.GetFromJsonAsync<StateResponse>("/api/state");
+        var instance = state!.Instances.First(i => i.SessionId == "test-diag-1");
+
+        // Headless mode has no real windows — binding stays None at 0x0.
+        Assert.Equal("0x0", instance.Window);
+        Assert.Equal("None", instance.WindowBindingSource);
+    }
+
+    [Fact]
     public async Task State_ReturnsSelectedInstanceId()
     {
         var payload = new HookPayload { SessionId = "test-selected-1" };
@@ -120,4 +161,7 @@ file sealed class InstanceResponse
     public string? SessionId { get; set; }
     public string? ProjectName { get; set; }
     public string State { get; set; } = "";
+    public string? Window { get; set; }
+    public string? WindowBindingSource { get; set; }
+    public string? WtSession { get; set; }
 }
