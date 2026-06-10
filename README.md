@@ -123,9 +123,10 @@ binds windows from user activity (foreground-claim binding):
    is claimed — you just launched Claude Code in that terminal.
 2. **Every prompt submit**: the binding is refreshed from the foreground window. You just
    typed in that terminal, so this is the strongest signal and self-heals wrong bindings.
-3. **PTT/focus on an unbound instance**: claims the foreground window as a last resort.
+3. **PTT on an unbound instance**: claims the foreground window as a last resort.
 4. **Manual rebind**: focus the correct terminal, then leader + `R` to bind it to the
-   selected instance.
+   selected instance. Manual bindings are sticky: automatic claims never overwrite
+   them, only another manual rebind does.
 
 Check current bindings via `GET /api/state` (`window`, `windowBindingSource`, `wtSession`).
 

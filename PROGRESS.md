@@ -41,7 +41,7 @@
 - [x] Configurable PTT hotkeys — default Ctrl+0-9, user-definable combos (done in Phase 1)
 - [x] Selected-instance mode Ctrl+Space (done in Phase 1)
 - [x] Instance state tracking (done in Phase 1)
-- [x] Window targeting via foreground-claim binding (prompt-submit claim + PTT/focus claim + leader+R rebind; title marker kept as best effort)
+- [x] Window targeting via foreground-claim binding (prompt-submit claim + PTT claim + leader+R rebind; title marker kept as best effort)
 - [x] Window focus + keystroke injection (AttachThreadInput + SetForegroundWindow)
 - [x] GetForegroundWindow capture as fallback
 - [x] Virtual desktop awareness (IVirtualDesktopManager COM interop)
@@ -70,5 +70,5 @@
 - [ ] Persistent config across daemon restarts
 
 ### Known Issues
-- ~~**Window marker unreliable**~~: Resolved — foreground-claim binding. The title marker stays as best effort, but the binding is now claimed/refreshed from the foreground window on every UserPromptSubmit hook (the user just typed in that terminal), on PTT/focus against an unbound instance, and via an explicit rebind hotkey (leader, then `R`). Session-start foreground fallback now also claims for instance 2+ (shared handles allowed). Remaining limitation: two instances in tabs of the same Windows Terminal window share one HWND and cannot be targeted individually — WT_SESSION is captured per instance for diagnostics (`/api/state`), but Windows exposes no WT_SESSION → tab mapping.
+- ~~**Window marker unreliable**~~: Resolved — foreground-claim binding. The title marker stays as best effort, but the binding is now claimed/refreshed from the foreground window on every UserPromptSubmit hook (the user just typed in that terminal), on PTT against an unbound instance, and via an explicit rebind hotkey (leader, then `R`; manual bindings are sticky and never overwritten by automatic claims). Session-start foreground fallback now also claims for instance 2+ (shared handles allowed). Remaining limitation: two instances in tabs of the same Windows Terminal window share one HWND and cannot be targeted individually — WT_SESSION is captured per instance for diagnostics (`/api/state`), but Windows exposes no WT_SESSION → tab mapping.
 - ~~**Key binding conflicts**~~: Resolved — leader key redesign (only `Ctrl+Shift+Q` intercepted globally).

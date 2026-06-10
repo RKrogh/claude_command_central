@@ -341,20 +341,13 @@ public sealed class HotkeyManager : IDisposable
     private async Task FocusInstanceAsync(string instanceId)
     {
         var instance = _registry.GetById(instanceId);
-        if (instance is null)
+        if (instance is null || instance.WindowHandle == nint.Zero)
         {
-            _logger.LogWarning("Instance {Id} not found for focus", instanceId);
-            return;
-        }
-
-        if (instance.WindowHandle == nint.Zero)
-        {
-            // No binding yet — the user is most likely sitting in this
-            // instance's terminal, so claim it instead of switching desktops.
-            if (await _windowBinding.ClaimForegroundAsync(instance, WindowBindingSource.FocusClaim))
-                _logger.LogInformation("Instance {Id} had no window — bound current foreground instead of focusing", instanceId);
-            else
-                _logger.LogWarning("Instance {Id} has no window and no foreground window to claim", instanceId);
+            // Note: do NOT claim the foreground window here. The user pressed
+            // focus to switch TO this instance, so by definition they are not
+            // sitting in its terminal — claiming would create a wrong binding.
+            // Unbound instances bind via prompt submit, PTT, or leader+rebind.
+            _logger.LogWarning("Instance {Id} not found or has no window for focus", instanceId);
             return;
         }
 

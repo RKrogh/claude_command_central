@@ -2,7 +2,11 @@ namespace CommandCentral.Core.Models;
 
 /// <summary>
 /// How an instance's terminal window handle was identified.
-/// Later sources are generally stronger signals than earlier ones.
+/// Precedence: <see cref="Manual"/> beats all automatic sources and is only
+/// replaced by another manual rebind (or instance unregistration). Among the
+/// automatic sources (<see cref="TitleMarker"/>, <see cref="SessionStartForeground"/>,
+/// <see cref="PromptSubmit"/>, <see cref="PttClaim"/>), <see cref="PromptSubmit"/>
+/// is the freshest signal and freely overwrites the others on every prompt.
 /// </summary>
 public enum WindowBindingSource
 {
@@ -23,9 +27,7 @@ public enum WindowBindingSource
     /// <summary>Foreground window claimed when PTT targeted an instance with no binding.</summary>
     PttClaim,
 
-    /// <summary>Foreground window claimed when focus targeted an instance with no binding.</summary>
-    FocusClaim,
-
-    /// <summary>Explicit rebind hotkey (leader, then rebind key).</summary>
+    /// <summary>Explicit rebind hotkey (leader, then rebind key). Sticky: automatic
+    /// sources never overwrite a manual binding.</summary>
     Manual
 }
