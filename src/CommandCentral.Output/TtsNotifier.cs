@@ -5,7 +5,7 @@ using TextToVoice.Core;
 namespace CommandCentral.Output;
 
 public sealed class TtsNotifier(
-    VoxtralEnginePool enginePool,
+    ITtsEnginePool enginePool,
     NotificationCache notificationCache,
     IPersonalityManager personalityManager,
     ILogger<TtsNotifier> logger) : ITtsNotifier

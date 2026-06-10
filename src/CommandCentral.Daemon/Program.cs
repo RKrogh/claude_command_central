@@ -20,6 +20,21 @@ builder.WebHost.UseUrls($"http://{host}:{port}");
 builder.Services.Configure<CommandCentralOptions>(
     builder.Configuration.GetSection("CommandCentral"));
 
+// Resolve relative LocalTts model dir against content root (project root when
+// running via dotnet run), falling back to the binary base directory —
+// same approach as the Whisper model path below.
+builder.Services.PostConfigure<CommandCentralOptions>(opts =>
+{
+    var modelsDir = Environment.ExpandEnvironmentVariables(opts.LocalTts.ModelsDir);
+    if (!Path.IsPathRooted(modelsDir))
+    {
+        var contentRoot = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, modelsDir));
+        var baseDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, modelsDir));
+        modelsDir = Directory.Exists(contentRoot) ? contentRoot : baseDir;
+    }
+    opts.LocalTts.ModelsDir = modelsDir;
+});
+
 // Core services
 builder.Services.AddSingleton<IEventBus, InMemoryEventBus>();
 builder.Services.AddSingleton<IInstanceRegistry>(sp =>
@@ -80,6 +95,8 @@ if (builder.Configuration["COMMANDCENTRAL_HEADLESS_ONLY"] is null &&
     builder.Services.AddSingleton<VoiceAssigner>();
     builder.Services.AddSingleton<IPersonalityManager, PersonalityManager>();
     builder.Services.AddSingleton<VoxtralEnginePool>();
+    builder.Services.AddSingleton<SherpaOnnxEnginePool>();
+    builder.Services.AddSingleton<ITtsEnginePool, TtsEnginePool>();
     builder.Services.AddSingleton<NotificationCache>();
     builder.Services.AddSingleton<INotificationCacheWarmer>(sp => sp.GetRequiredService<NotificationCache>());
     builder.Services.AddSingleton<ITtsNotifier, TtsNotifier>();

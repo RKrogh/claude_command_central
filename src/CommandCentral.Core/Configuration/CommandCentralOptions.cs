@@ -78,7 +78,11 @@ public sealed class SttOptions
 
 public sealed class TtsOptions
 {
-    public string NotificationEngine { get; set; } = "Voxtral";
+    /// <summary>
+    /// Engine for notification TTS: "SherpaOnnx" (local, default), "Voxtral" (cloud),
+    /// or "Disabled"/"None" to turn notifications off.
+    /// </summary>
+    public string NotificationEngine { get; set; } = "SherpaOnnx";
     public string ResponseEngine { get; set; } = "Voxtral";
     public Dictionary<string, VoiceOptions> Voices { get; set; } = new();
 
@@ -117,6 +121,36 @@ public sealed class VoxtralOptions
     public string ResponseFormat { get; set; } = "wav";
 }
 
+/// <summary>
+/// Options for the local sherpa-onnx TTS engine (Piper VITS voice models).
+/// Models are not committed — download via scripts/download-tts-model.sh|.ps1.
+/// </summary>
+public sealed class LocalTtsOptions
+{
+    /// <summary>
+    /// Directory containing Piper voice model folders, e.g.
+    /// models/tts/vits-piper-en_US-lessac-medium/. Relative paths are resolved
+    /// against the daemon content root, then the binary base directory.
+    /// Supports environment variables.
+    /// </summary>
+    public string ModelsDir { get; set; } = "../../models/tts";
+
+    /// <summary>
+    /// Voice used when a slot's assigned voice model is not downloaded.
+    /// </summary>
+    public string DefaultVoice { get; set; } = "en_US-lessac-medium";
+
+    /// <summary>
+    /// Speech rate: 1.0 = normal, lower = faster, higher = slower.
+    /// </summary>
+    public float LengthScale { get; set; } = 1.0f;
+
+    /// <summary>
+    /// Threads for ONNX inference.
+    /// </summary>
+    public int NumThreads { get; set; } = 2;
+}
+
 public sealed class VoiceOptions
 {
     public string Name { get; set; } = "";
@@ -145,6 +179,7 @@ public sealed class CommandCentralOptions
     public SttOptions Stt { get; set; } = new();
     public TtsOptions Tts { get; set; } = new();
     public VoxtralOptions Voxtral { get; set; } = new();
+    public LocalTtsOptions LocalTts { get; set; } = new();
     public InstanceOptions Instances { get; set; } = new();
     public PersistenceOptions Persistence { get; set; } = new();
 }

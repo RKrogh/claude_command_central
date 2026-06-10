@@ -12,21 +12,21 @@ namespace CommandCentral.Output;
 
 /// <summary>
 /// Caches synthesized notification audio (greetings, done phrases) as WAV files on disk.
-/// First synthesis hits the Voxtral API; subsequent plays use the cached file.
-/// Invalidation is hash-based: if the phrase text or voice ref changes, the file is re-synthesized.
+/// First synthesis runs the configured TTS engine; subsequent plays use the cached file.
+/// Invalidation is hash-based: if the phrase text or resolved voice changes, the file is re-synthesized.
 /// </summary>
 public sealed class NotificationCache : INotificationCacheWarmer
 {
     private const string ManifestFileName = "manifest.json";
 
-    private readonly VoxtralEnginePool _enginePool;
+    private readonly ITtsEnginePool _enginePool;
     private readonly IPersonalityManager _personalityManager;
     private readonly string _personalitiesPath;
     private readonly ILogger<NotificationCache> _logger;
     private readonly ConcurrentDictionary<string, CacheManifest> _manifests = new();
 
     public NotificationCache(
-        VoxtralEnginePool enginePool,
+        ITtsEnginePool enginePool,
         IPersonalityManager personalityManager,
         IOptions<CommandCentralOptions> options,
         ILogger<NotificationCache> logger)
@@ -52,8 +52,8 @@ public sealed class NotificationCache : INotificationCacheWarmer
         string slotId, string phrase, string cacheKey, CancellationToken ct = default)
     {
         var cacheDir = GetSlotCacheDir(slotId);
-        var voiceRef = _personalityManager.ResolveVoiceRefPath(slotId);
-        var hash = ComputeHash(phrase, voiceRef);
+        var voiceKey = _enginePool.GetVoiceCacheKey(slotId);
+        var hash = ComputeHash(phrase, voiceKey);
         var manifest = LoadManifest(slotId, cacheDir);
 
         // Check if cached and still valid
@@ -173,9 +173,9 @@ public sealed class NotificationCache : INotificationCacheWarmer
         File.WriteAllText(manifestPath, json);
     }
 
-    private static string ComputeHash(string phrase, string? voiceRefPath)
+    private static string ComputeHash(string phrase, string? voiceKey)
     {
-        var input = $"{phrase}|{voiceRefPath ?? "default"}";
+        var input = $"{phrase}|{voiceKey ?? "default"}";
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(input));
         return Convert.ToHexString(bytes)[..16];
     }

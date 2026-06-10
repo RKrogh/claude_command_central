@@ -19,6 +19,7 @@ public sealed class VoxtralEnginePool : IDisposable
     private readonly CommandCentralOptions _options;
     private readonly IPersonalityManager _personalityManager;
     private readonly ILogger<VoxtralEnginePool> _logger;
+    private int _warnedNoApiKey;
     private bool _disposed;
 
     public VoxtralEnginePool(
@@ -41,7 +42,19 @@ public sealed class VoxtralEnginePool : IDisposable
     {
         if (string.IsNullOrEmpty(_options.Voxtral.ApiKey))
         {
-            _logger.LogWarning("Voxtral API key not configured; cannot create engine for slot {Slot}", slotId);
+            // Warn once, then stay quiet — missing config shouldn't spam the log
+            // on every notification.
+            if (Interlocked.Exchange(ref _warnedNoApiKey, 1) == 0)
+            {
+                _logger.LogWarning(
+                    "Voxtral API key not configured; TTS via Voxtral is disabled. Set it with: " +
+                    "dotnet user-secrets set \"CommandCentral:Voxtral:ApiKey\" \"<key>\" --project src/CommandCentral.Daemon/");
+            }
+            else
+            {
+                _logger.LogDebug("Voxtral API key still not configured; skipping engine for slot {Slot}", slotId);
+            }
+
             return null;
         }
 
