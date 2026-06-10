@@ -29,6 +29,7 @@ Think `dockerd` + `docker ps` — the daemon handles hotkeys, speech-to-text, an
 - **.NET 10 SDK** ([install](https://dot.net/download))
 - **WSL2** with mirrored networking (for Claude Code hooks to reach localhost)
 - **Whisper model** — download `ggml-tiny.bin` (or `ggml-base.en.bin` for better accuracy)
+- **Piper TTS voice model** (optional) — for local TTS notifications, see below
 
 ### WSL2 Mirrored Networking
 
@@ -48,6 +49,37 @@ Invoke-WebRequest -Uri "https://huggingface.co/ggerganov/whisper.cpp/resolve/mai
 ```
 
 For better accuracy (especially with accents), use `ggml-base.en.bin` instead.
+
+### TTS Voice Model (optional)
+
+TTS notifications ("instance 2 ready", "done") run on a local [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) engine using Piper VITS voice models. No model, no problem: the daemon starts fine, logs one warning telling you what to download, and skips speech until a model appears.
+
+Download the default voice (`en_US-lessac-medium`, ~64 MB) into `models/tts/`:
+
+From WSL:
+```bash
+bash scripts/download-tts-model.sh
+```
+
+Or from PowerShell:
+```powershell
+pwsh scripts/download-tts-model.ps1
+```
+
+Each slot (1-9) is auto-assigned its own voice. Download more voices for distinct per-instance voices — assignments persist across restarts:
+
+```bash
+bash scripts/download-tts-model.sh --voice en_US-amy-medium
+bash scripts/download-tts-model.sh --list   # show the auto-assignment order
+```
+
+Manual download: grab `vits-piper-<voice>.tar.bz2` from the [sherpa-onnx tts-models release](https://github.com/k2-fsa/sherpa-onnx/releases/tag/tts-models) and extract into `models/tts/` so that `models/tts/vits-piper-<voice>/<voice>.onnx` exists (alongside `tokens.txt` and `espeak-ng-data/`).
+
+**Cloud alternative (Voxtral):** set `Tts:NotificationEngine` to `Voxtral` and store your Mistral API key outside source control:
+```powershell
+dotnet user-secrets set "CommandCentral:Voxtral:ApiKey" "<your-key>" --project src/CommandCentral.Daemon/
+```
+Voxtral adds zero-shot voice cloning via personality `voiceRef` audio clips, at the cost of cloud latency and an API bill.
 
 ## Quick Start
 
@@ -149,10 +181,30 @@ Edit `src/CommandCentral.Daemon/appsettings.json`:
     "Stt": {
       "Language": "en",
       "ModelPath": "../../models/ggml-tiny.bin"
+    },
+    "Tts": {
+      "NotificationEngine": "SherpaOnnx",  // SherpaOnnx (local) | Voxtral (cloud) | Disabled
+      "Voices": {}                          // optional explicit slot → voice overrides
+    },
+    "LocalTts": {
+      "ModelsDir": "../../models/tts",
+      "DefaultVoice": "en_US-lessac-medium"
+    },
+    "Persistence": {
+      "StateFilePath": null  // default: %LOCALAPPDATA%\CommandCentral\state.json
     }
   }
 }
 ```
+
+### State Persistence
+
+User-tuned runtime state survives daemon restarts via a small JSON file (default `%LOCALAPPDATA%\CommandCentral\state.json`, configurable via `Persistence:StateFilePath`):
+
+- **Voice assignments** — each slot keeps its assigned voice
+- **Selected instance** — your last explicit selection (leader + `Tab`) is restored when that slot re-registers
+
+Delete the file to reset. Corrupt or missing files are handled gracefully (fresh state, one log line).
 
 ## Project Structure
 
@@ -168,19 +220,21 @@ hooks/
 scripts/
   install-hooks.sh            Bash installer (WSL)
   install-hooks.ps1           PowerShell installer (Windows, WSL fallback)
+  download-tts-model.sh       Piper TTS voice model downloader (WSL)
+  download-tts-model.ps1      Piper TTS voice model downloader (Windows)
 models/
   ggml-tiny.bin               Whisper model (not committed)
+  tts/                        Piper TTS voice models (not committed)
 ```
 
 ## Development
 
 ```bash
 # Build
-dotnet build src/CommandCentral.Daemon/
+dotnet build src/CommandCentral.slnx
 
 # Run tests
-dotnet test src/CommandCentral.Core.Tests/
-dotnet test src/CommandCentral.Integration.Tests/
+dotnet test src/CommandCentral.slnx
 
 # Check hooks
 bash scripts/install-hooks.sh --check

@@ -50,7 +50,7 @@
 - [x] Focus PTT (Ctrl+Shift+N — switch desktop + record)
 - [x] Quick-back (Ctrl+Shift+§ — return to previous desktop)
 - [x] Key modifier exclusivity (Ctrl+1 won't fire when Ctrl+Shift+1 pressed)
-- [ ] TTS notification per instance (local engine — wiring exists, needs model)
+- [x] TTS notification per instance (local engine — sherpa-onnx/Piper wired with per-slot voice assignment, download scripts `scripts/download-tts-model.sh|.ps1`, startup diagnostics, graceful degradation with warn-once when no model is present)
 
 ### Phase 3: TUI + Full Voice
 - [ ] Daemon internal API (WebSocket for real-time updates)
@@ -67,7 +67,7 @@
 - [ ] Audio ducking
 - [ ] Activity log / transcript viewer
 - [ ] Auto-reconnect
-- [ ] Persistent config across daemon restarts
+- [x] Persistent config across daemon restarts (JSON state store at `%LOCALAPPDATA%\CommandCentral\state.json` — voice assignments + selected instance; configurable via `Persistence:StateFilePath`)
 
 ### Known Issues
 - **Window marker unreliable**: Terminal title marker (`cc:<hex>`) fails consistently — Claude Code resets the title before daemon can match. Instance 2+ on the same desktop may get `window: 0x0`. Foreground fallback only claims one window per desktop. Needs a different identification approach.
