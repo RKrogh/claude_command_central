@@ -74,7 +74,7 @@ public sealed class JsonStateStore : IStateStore
             if (state is null)
             {
                 logger.LogWarning("State file {Path} deserialized to null; starting with fresh state", filePath);
-                return new DaemonState();
+                return StartFreshPreservingCorruptFile(filePath, logger);
             }
 
             logger.LogInformation(
@@ -85,8 +85,31 @@ public sealed class JsonStateStore : IStateStore
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Failed to read state file {Path}; starting with fresh state", filePath);
-            return new DaemonState();
+            return StartFreshPreservingCorruptFile(filePath, logger);
         }
+    }
+
+    /// <summary>
+    /// Moves an unreadable state file aside (state.json.corrupt, overwriting any
+    /// previous one) so the next Save doesn't silently destroy it, then returns
+    /// fresh state.
+    /// </summary>
+    private static DaemonState StartFreshPreservingCorruptFile(string filePath, ILogger logger)
+    {
+        var corruptPath = filePath + ".corrupt";
+        try
+        {
+            File.Move(filePath, corruptPath, overwrite: true);
+            logger.LogWarning("Preserved unreadable state file as {CorruptPath} for inspection", corruptPath);
+        }
+        catch (Exception ex)
+        {
+            // Best effort only — fresh state still wins over failing startup.
+            logger.LogWarning(ex, "Could not move unreadable state file {Path} to {CorruptPath}",
+                filePath, corruptPath);
+        }
+
+        return new DaemonState();
     }
 
     private void Save()

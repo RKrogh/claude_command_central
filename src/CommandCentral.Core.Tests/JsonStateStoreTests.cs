@@ -84,6 +84,32 @@ public class JsonStateStoreTests : IDisposable
     }
 
     [Fact]
+    public void Load_CorruptFile_PreservesItAsCorruptSidecar()
+    {
+        Directory.CreateDirectory(_tempDir);
+        File.WriteAllText(StatePath, "{ not valid json !!");
+
+        CreateStore();
+
+        var corruptPath = StatePath + ".corrupt";
+        Assert.True(File.Exists(corruptPath));
+        Assert.Equal("{ not valid json !!", File.ReadAllText(corruptPath));
+        Assert.False(File.Exists(StatePath));
+    }
+
+    [Fact]
+    public void Load_CorruptFile_OverwritesPreviousCorruptSidecar()
+    {
+        Directory.CreateDirectory(_tempDir);
+        File.WriteAllText(StatePath + ".corrupt", "older corruption");
+        File.WriteAllText(StatePath, "newer corruption");
+
+        CreateStore();
+
+        Assert.Equal("newer corruption", File.ReadAllText(StatePath + ".corrupt"));
+    }
+
+    [Fact]
     public void Update_CreatesMissingDirectory()
     {
         Assert.False(Directory.Exists(_tempDir));
