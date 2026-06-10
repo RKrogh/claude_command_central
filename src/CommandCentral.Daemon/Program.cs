@@ -28,6 +28,7 @@ builder.Services.AddSingleton<IInstanceRegistry>(sp =>
         sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<CommandCentralOptions>>()
             .Value.Instances.MaxInstances));
 builder.Services.AddSingleton<IOrchestrator, Orchestrator>();
+builder.Services.AddSingleton<InstanceActivityLog>();
 
 // Platform services — needed by Orchestrator and input pipeline
 builder.Services.AddSingleton<IWindowManager, WindowsWindowManager>();
@@ -89,6 +90,12 @@ else
 }
 
 var app = builder.Build();
+
+// Instantiate eagerly so it subscribes to the event bus before the first
+// hook arrives — otherwise early activity would be missing from the log.
+_ = app.Services.GetRequiredService<InstanceActivityLog>();
+
+app.UseWebSockets();
 
 app.MapHookEndpoints();
 app.MapApiEndpoints();

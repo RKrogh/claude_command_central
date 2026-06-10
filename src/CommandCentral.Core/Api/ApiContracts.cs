@@ -41,6 +41,18 @@ public sealed record InstanceSnapshotDto
     public string? VoiceProfile { get; init; }
     public DateTime LastActivity { get; init; }
     public bool WindowBound { get; init; }
+
+    /// <summary>Bound window handle as a hex string ("0x0" when unbound). Diagnostics.</summary>
+    public string Window { get; init; } = "0x0";
+
+    /// <summary>How the window binding was established (WindowBindingSource enum name).</summary>
+    public string WindowBindingSource { get; init; } = "None";
+
+    public DateTime? WindowBoundAt { get; init; }
+
+    /// <summary>Windows Terminal session GUID reported by the hooks. Diagnostics only.</summary>
+    public string? WtSession { get; init; }
+
     public Guid? DesktopId { get; init; }
     public IReadOnlyList<ActivityEntryDto> RecentActivity { get; init; } = [];
 }

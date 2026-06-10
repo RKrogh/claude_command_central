@@ -1,4 +1,5 @@
 using CommandCentral.Core.Services;
+using CommandCentral.Daemon.EventStream;
 
 namespace CommandCentral.Daemon.Endpoints;
 
@@ -8,30 +9,28 @@ public static class ApiEndpoints
     {
         var api = app.MapGroup("/api");
 
-        api.MapGet("/state", (IInstanceRegistry registry) =>
+        api.MapGet("/state", (IInstanceRegistry registry, InstanceActivityLog activityLog) =>
+            Results.Ok(ApiMapper.BuildSnapshot(registry, activityLog)));
+
+        // WebSocket event stream: snapshot on connect, then live instance and
+        // daemon events. The TUI is the primary consumer.
+        api.Map("/events", async (
+            HttpContext context,
+            IInstanceRegistry registry,
+            InstanceActivityLog activityLog,
+            IEventBus eventBus,
+            ILogger<EventStreamSocket> logger) =>
         {
-            var instances = registry.GetAll().Select(i => new
+            if (!context.WebSockets.IsWebSocketRequest)
             {
-                i.Id,
-                i.SessionId,
-                i.Cwd,
-                i.ProjectName,
-                State = i.State.ToString(),
-                Window = $"0x{i.WindowHandle:X}",
-                WindowBindingSource = i.WindowBindingSource.ToString(),
-                i.WindowBoundAt,
-                i.WtSession,
-                i.VoiceProfile,
-                i.LastActivity
-            });
+                context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                await context.Response.WriteAsync("WebSocket connection required.");
+                return;
+            }
 
-            return Results.Ok(new
-            {
-                SelectedInstanceId = registry.SelectedInstanceId,
-                Instances = instances
-            });
+            using var socket = await context.WebSockets.AcceptWebSocketAsync();
+            var stream = new EventStreamSocket(registry, activityLog, eventBus, logger);
+            await stream.RunAsync(socket, context.RequestAborted);
         });
-
-        // WebSocket endpoint for TUI will be added in Phase 3
     }
 }
