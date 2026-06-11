@@ -32,3 +32,35 @@ internal sealed class NoopNotificationCacheWarmer : INotificationCacheWarmer
 {
     public Task WarmupAsync(string slotId, CancellationToken ct = default) => Task.CompletedTask;
 }
+
+/// <summary>
+/// In-memory state store for headless/test mode — state never touches disk.
+/// </summary>
+internal sealed class NoopStateStore : IStateStore
+{
+    private readonly object _lock = new();
+    private readonly DaemonState _state = new();
+
+    public DaemonState State
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return new DaemonState
+                {
+                    SelectedInstanceId = _state.SelectedInstanceId,
+                    VoiceAssignments = new Dictionary<string, string>(_state.VoiceAssignments)
+                };
+            }
+        }
+    }
+
+    public void Update(Action<DaemonState> mutate)
+    {
+        lock (_lock)
+        {
+            mutate(_state);
+        }
+    }
+}

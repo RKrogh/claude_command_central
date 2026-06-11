@@ -3,12 +3,40 @@ using CommandCentral.Core.Models;
 
 namespace CommandCentral.Core.Services;
 
-public sealed class InMemoryInstanceRegistry(IEventBus eventBus, int maxInstances = 25) : IInstanceRegistry
+public sealed class InMemoryInstanceRegistry(
+    IEventBus eventBus,
+    IStateStore? stateStore = null,
+    int maxInstances = 25) : IInstanceRegistry
 {
     private readonly ConcurrentDictionary<string, InstanceInfo> _bySessionId = new();
     private readonly ConcurrentDictionary<string, InstanceInfo> _byId = new();
 
-    public string? SelectedInstanceId { get; set; }
+    /// <summary>
+    /// The selection persisted from the previous daemon run. When this slot
+    /// re-registers (and the user hasn't selected anything else this session),
+    /// it becomes the selected instance again.
+    /// </summary>
+    private readonly string? _preferredSelectedId = stateStore?.State.SelectedInstanceId;
+
+    private string? _selectedInstanceId;
+    private bool _userSelectedThisSession;
+
+    /// <summary>
+    /// Setting this is treated as an explicit user action: it sticks for the
+    /// session and is persisted as the preferred selection across restarts.
+    /// Automatic selection (first registration, fallback on unregister) goes
+    /// through the backing field and is not persisted.
+    /// </summary>
+    public string? SelectedInstanceId
+    {
+        get => _selectedInstanceId;
+        set
+        {
+            _selectedInstanceId = value;
+            _userSelectedThisSession = true;
+            stateStore?.Update(s => s.SelectedInstanceId = value);
+        }
+    }
 
     public InstanceInfo? GetById(string id) =>
         _byId.GetValueOrDefault(id);
@@ -36,8 +64,10 @@ public sealed class InMemoryInstanceRegistry(IEventBus eventBus, int maxInstance
         _bySessionId[sessionId] = instance;
         _byId[id] = instance;
 
-        if (SelectedInstanceId is null)
-            SelectedInstanceId = id;
+        if (_selectedInstanceId is null)
+            _selectedInstanceId = id;
+        else if (!_userSelectedThisSession && id == _preferredSelectedId)
+            _selectedInstanceId = id; // restore the selection from the previous run
 
         eventBus.Publish(new Events.InstanceEvent(
             Events.InstanceEventType.Added, id, instance.State,
@@ -53,8 +83,8 @@ public sealed class InMemoryInstanceRegistry(IEventBus eventBus, int maxInstance
 
         _byId.TryRemove(instance.Id, out _);
 
-        if (SelectedInstanceId == instance.Id)
-            SelectedInstanceId = _byId.Keys.OrderBy(k => k).FirstOrDefault();
+        if (_selectedInstanceId == instance.Id)
+            _selectedInstanceId = _byId.Keys.OrderBy(k => k).FirstOrDefault();
 
         eventBus.Publish(new Events.InstanceEvent(
             Events.InstanceEventType.Removed, instance.Id,

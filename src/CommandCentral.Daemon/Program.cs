@@ -20,11 +20,27 @@ builder.WebHost.UseUrls($"http://{host}:{port}");
 builder.Services.Configure<CommandCentralOptions>(
     builder.Configuration.GetSection("CommandCentral"));
 
+// Resolve relative LocalTts model dir against content root (project root when
+// running via dotnet run), falling back to the binary base directory —
+// same approach as the Whisper model path below.
+builder.Services.PostConfigure<CommandCentralOptions>(opts =>
+{
+    var modelsDir = Environment.ExpandEnvironmentVariables(opts.LocalTts.ModelsDir);
+    if (!Path.IsPathRooted(modelsDir))
+    {
+        var contentRoot = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, modelsDir));
+        var baseDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, modelsDir));
+        modelsDir = Directory.Exists(contentRoot) ? contentRoot : baseDir;
+    }
+    opts.LocalTts.ModelsDir = modelsDir;
+});
+
 // Core services
 builder.Services.AddSingleton<IEventBus, InMemoryEventBus>();
 builder.Services.AddSingleton<IInstanceRegistry>(sp =>
     new InMemoryInstanceRegistry(
         sp.GetRequiredService<IEventBus>(),
+        sp.GetRequiredService<IStateStore>(),
         sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<CommandCentralOptions>>()
             .Value.Instances.MaxInstances));
 builder.Services.AddSingleton<IOrchestrator, Orchestrator>();
@@ -41,6 +57,17 @@ builder.Services.AddSingleton<DesktopNavigationContext>();
 if (builder.Configuration["COMMANDCENTRAL_HEADLESS_ONLY"] is null &&
     Environment.GetEnvironmentVariable("COMMANDCENTRAL_HEADLESS_ONLY") is null)
 {
+    // Persistent state (selected instance, voice assignments) — survives restarts
+    builder.Services.AddSingleton<IStateStore>(sp =>
+    {
+        var configured = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<CommandCentralOptions>>()
+            .Value.Persistence.StateFilePath;
+        var path = string.IsNullOrEmpty(configured)
+            ? JsonStateStore.DefaultStateFilePath
+            : Environment.ExpandEnvironmentVariables(configured);
+        return new JsonStateStore(path, sp.GetRequiredService<ILogger<JsonStateStore>>());
+    });
+
     // STT: VoiceToText + Whisper + NAudio
     var sttConfig = builder.Configuration.GetSection("CommandCentral:Stt");
     builder.Services.AddVoiceToText();
@@ -69,6 +96,8 @@ if (builder.Configuration["COMMANDCENTRAL_HEADLESS_ONLY"] is null &&
     builder.Services.AddSingleton<VoiceAssigner>();
     builder.Services.AddSingleton<IPersonalityManager, PersonalityManager>();
     builder.Services.AddSingleton<VoxtralEnginePool>();
+    builder.Services.AddSingleton<SherpaOnnxEnginePool>();
+    builder.Services.AddSingleton<ITtsEnginePool, TtsEnginePool>();
     builder.Services.AddSingleton<NotificationCache>();
     builder.Services.AddSingleton<INotificationCacheWarmer>(sp => sp.GetRequiredService<NotificationCache>());
     builder.Services.AddSingleton<ITtsNotifier, TtsNotifier>();
@@ -82,6 +111,7 @@ if (builder.Configuration["COMMANDCENTRAL_HEADLESS_ONLY"] is null &&
 else
 {
     // Headless mode: register noop implementations for Orchestrator dependencies
+    builder.Services.AddSingleton<IStateStore, NoopStateStore>();
     builder.Services.AddSingleton<ITtsNotifier, NoopTtsNotifier>();
     builder.Services.AddSingleton<IPersonalityManager, NoopPersonalityManager>();
     builder.Services.AddSingleton<IKeystrokeInjector, NoopKeystrokeInjector>();
