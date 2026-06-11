@@ -29,7 +29,7 @@
 - **Webhook forwarding**: Forward specific hook events to external services (Slack, Discord)
 
 ## Security
-- **API key / shared secret**: Hook requests include an `Authorization` header with a shared secret. Daemon rejects requests without it. Secret auto-generated on first run, stored in appsettings, and injected into hook curl commands by the install script. Prevents rogue processes from sending fake hooks even on localhost.
+- ~~**API key / shared secret**~~: Done — daemon auto-generates a secret file on first run, hook commands read it at request time (`Authorization: Bearer`), install scripts wire the path. See README "Hook Authentication".
 - **Rate limiting**: Throttle hook endpoints to prevent abuse (e.g. max 10 requests/second per session)
 
 ## Portability

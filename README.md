@@ -184,6 +184,27 @@ one OS window handle and cannot be targeted individually — keystrokes go to wh
 is active. Run instances in separate windows for reliable targeting. The Windows Terminal
 tab GUID (`WT_SESSION`) is recorded per instance for diagnostics.
 
+## Hook Authentication
+
+Hook endpoints (`/hooks/*`) require a shared secret so other local processes cannot send
+fake hooks to the daemon. It is on by default and zero-config:
+
+- The daemon auto-generates a secret at `%LOCALAPPDATA%\CommandCentral\hook-secret` on
+  first run (configurable via `HookAuth:SecretFilePath`).
+- `scripts/install-hooks.sh` / `.ps1` find (or create) the same file and embed its *path*
+  into the hook commands — the secret value never lands in `settings.json`; hooks read the
+  file at request time, so rotation just means deleting the file and re-running the daemon.
+- Requests without a valid `Authorization: Bearer` header get `401` (constant-time compare).
+  The first rejection logs a reminder to re-run the install script.
+- Disable with `HookAuth:Enabled = false` if you need the old open behavior.
+
+`/health` and the TUI's `/api` endpoints are not guarded — the secret protects the hook
+ingestion path, where spoofed data would poison instance state.
+
+**Upgrading**: after pulling this feature, re-run `scripts/install-hooks.sh` once so your
+hooks start sending the secret. Until then the daemon rejects them (and tells you so in
+the log).
+
 ## Optional: Attach TUI
 
 ```powershell
@@ -236,6 +257,7 @@ Edit `src/CommandCentral.Daemon/appsettings.json`:
 {
   "CommandCentral": {
     "Server": { "Port": 9000 },
+    "HookAuth": { "Enabled": true },  // shared-secret auth for /hooks/* (see Hook Authentication)
     "Hotkeys": {
       "PttBindings": { "Ctrl+1": "1", ... },
       "FocusBindings": { "Shift+1": "1", ... },
