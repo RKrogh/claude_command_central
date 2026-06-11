@@ -64,7 +64,7 @@
 ### Phase 4: Polish & Extras
 - [x] Hook endpoint shared-secret auth (auto-generated secret file, constant-time Bearer check, install scripts wire the path; `HookAuth:Enabled` to opt out)
 - [ ] Vosk streaming STT
-- [ ] Visual PTT feedback in TUI
+- [x] Visual PTT feedback in TUI (header REC/TTS/LEADER badges + per-card recording marker, driven by the event stream)
 - [ ] Audio ducking
 - [ ] Activity log / transcript viewer
 - [x] Auto-reconnect (TUI ↔ daemon, exponential backoff 1s → 30s — landed with the real-time TUI)

@@ -3,34 +3,47 @@ using CommandCentral.Tui.Services;
 
 namespace CommandCentral.Tui.Views;
 
-public sealed class MainWindow : Window
+public sealed class MainWindow : Toplevel
 {
     private readonly TuiStateStore _store;
+    private readonly HeaderView _header;
     private readonly AgentListView _agentList;
     private readonly AgentDetailView _agentDetail;
     private readonly SettingsView _settings;
     private readonly StatusBarView _statusBar;
     private string? _selectedAgentId;
     private bool _showSettings;
+    private int _spinnerFrame;
 
     public MainWindow(TuiStateStore store, string daemonUrl)
     {
         _store = store;
-        Title = "Command Central";
-        ColorScheme = Colors.Base;
+        X = 0;
+        Y = 0;
+        Width = Dim.Fill();
+        Height = Dim.Fill();
+        ColorScheme = Theme.Canvas;
+
+        _header = new HeaderView(daemonUrl)
+        {
+            X = 0,
+            Y = 0,
+            Width = Dim.Fill(),
+            Height = 1
+        };
 
         _agentList = new AgentListView
         {
             X = 0,
-            Y = 0,
-            Width = Dim.Percent(40),
+            Y = 1,
+            Width = Dim.Percent(42),
             Height = Dim.Fill(1)
         };
 
         _agentDetail = new AgentDetailView
         {
             X = Pos.Right(_agentList),
-            Y = 0,
+            Y = 1,
             Width = Dim.Fill(),
             Height = Dim.Fill(1)
         };
@@ -38,7 +51,7 @@ public sealed class MainWindow : Window
         _settings = new SettingsView(daemonUrl)
         {
             X = Pos.Right(_agentList),
-            Y = 0,
+            Y = 1,
             Width = Dim.Fill(),
             Height = Dim.Fill(1),
             Visible = false
@@ -54,7 +67,7 @@ public sealed class MainWindow : Window
 
         _agentList.AgentSelected += OnAgentSelected;
 
-        Add(_agentList, _agentDetail, _settings, _statusBar);
+        Add(_header, _agentList, _agentDetail, _settings, _statusBar);
 
         KeyPress += OnKeyPress;
 
@@ -62,9 +75,21 @@ public sealed class MainWindow : Window
         // marshal rendering onto the UI loop.
         _store.Changed += () => Application.MainLoop?.Invoke(Render);
 
-        // Keep the clock and connection status fresh even when nothing happens.
+        // Spinner animation. Cheap when nothing is busy: the views skip
+        // repainting unless they actually animate.
+        Application.MainLoop.AddTimeout(TimeSpan.FromMilliseconds(120), (_) =>
+        {
+            _spinnerFrame++;
+            _agentList.Tick(_spinnerFrame);
+            if (!_store.Connected)
+                _header.Tick(_spinnerFrame);
+            return true;
+        });
+
+        // Clock and relative ages.
         Application.MainLoop.AddTimeout(TimeSpan.FromSeconds(1), (_) =>
         {
+            _header.Tick(_spinnerFrame);
             RenderStatusBar();
             return true;
         });
@@ -93,7 +118,7 @@ public sealed class MainWindow : Window
     private void OnAgentSelected(string agentId)
     {
         _selectedAgentId = agentId;
-        RenderDetail();
+        Render();
     }
 
     private void Render()
@@ -103,40 +128,20 @@ public sealed class MainWindow : Window
         if (_selectedAgentId is null || agents.All(a => a.Info.Id != _selectedAgentId))
             _selectedAgentId = _store.SelectedInstanceId ?? agents.FirstOrDefault()?.Info.Id;
 
-        _agentList.UpdateAgents(
-            agents.Select(a => new AgentListItem(a.Info.Id, AgentFormatter.FormatListItem(a.Info))).ToList(),
-            _selectedAgentId);
-
-        RenderDetail();
+        _agentList.UpdateAgents(agents, _selectedAgentId, _store.SelectedInstanceId, _store.PttInstanceId);
+        _agentDetail.UpdateAgent(_selectedAgentId is null ? null : _store.GetAgent(_selectedAgentId));
+        _header.Update(_store.Connected, _store.PttInstanceId, _store.TtsInstanceId, _store.LeaderActive);
         RenderStatusBar();
-    }
-
-    private void RenderDetail()
-    {
-        var agent = _selectedAgentId is null ? null : _store.GetAgent(_selectedAgentId);
-        if (agent is null)
-        {
-            _agentDetail.ShowEmpty();
-            return;
-        }
-
-        var info = agent.Info;
-        _agentDetail.UpdateTitle($" Agent: {info.ProjectName ?? "unknown"} (#{info.Id}) ");
-        _agentDetail.UpdateAgent(
-            status: info.State,
-            project: info.Cwd,
-            voice: info.VoiceProfile ?? "(auto)",
-            session: info.SessionId is { Length: > 12 } s ? s[..12] : info.SessionId,
-            window: info.WindowBound ? "bound" : "not bound",
-            desktop: info.DesktopId?.ToString() ?? "unknown");
-
-        // Newest entries on top, like the activity feed in the plan mock.
-        _agentDetail.UpdateActivityLog(
-            agent.Activity.Select(AgentFormatter.FormatActivityEntry).Reverse().ToList());
     }
 
     private void RenderStatusBar()
     {
-        _statusBar.Update(_store.Connected, _store.SelectedInstanceId, _store.GetAgents().Count);
+        var agents = _store.GetAgents();
+        _statusBar.Update(
+            _store.Connected,
+            _store.SelectedInstanceId,
+            busy: agents.Count(a => a.Info.State == "Busy"),
+            waiting: agents.Count(a => a.Info.State == "WaitingForInput"),
+            idle: agents.Count(a => a.Info.State == "Idle"));
     }
 }

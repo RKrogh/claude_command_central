@@ -25,6 +25,12 @@ public sealed class TuiStateStore(int maxActivityEntries = 100)
     public bool Connected { get; private set; }
     public string? SelectedInstanceId { get; private set; }
 
+    // Live daemon indicators, driven by the event stream. Instance ids of
+    // in-flight PTT/TTS, and whether the leader-key window is open.
+    public string? PttInstanceId { get; private set; }
+    public string? TtsInstanceId { get; private set; }
+    public bool LeaderActive { get; private set; }
+
     public IReadOnlyList<AgentView> GetAgents()
     {
         lock (_lock)
@@ -125,6 +131,9 @@ public sealed class TuiStateStore(int maxActivityEntries = 100)
             return;
         }
 
+        if (UpdateLiveIndicators(daemonEvent))
+            RaiseChanged();
+
         if (daemonEvent.InstanceId is null)
             return;
 
@@ -141,6 +150,40 @@ public sealed class TuiStateStore(int maxActivityEntries = 100)
         }
 
         RaiseChanged();
+    }
+
+    /// <summary>
+    /// Tracks transient daemon activity (recording, speaking, leader window)
+    /// so the UI can show live badges. Returns true when an indicator changed.
+    /// </summary>
+    private bool UpdateLiveIndicators(DaemonEventDto daemonEvent)
+    {
+        lock (_lock)
+        {
+            switch (daemonEvent.Type)
+            {
+                case nameof(Core.Events.DaemonEventType.PttStarted):
+                    PttInstanceId = daemonEvent.InstanceId;
+                    return true;
+                case nameof(Core.Events.DaemonEventType.PttStopped):
+                    PttInstanceId = null;
+                    return true;
+                case nameof(Core.Events.DaemonEventType.TtsStarted):
+                    TtsInstanceId = daemonEvent.InstanceId;
+                    return true;
+                case nameof(Core.Events.DaemonEventType.TtsStopped):
+                    TtsInstanceId = null;
+                    return true;
+                case nameof(Core.Events.DaemonEventType.LeaderActivated):
+                    LeaderActive = true;
+                    return true;
+                case nameof(Core.Events.DaemonEventType.LeaderDeactivated):
+                    LeaderActive = false;
+                    return true;
+                default:
+                    return false;
+            }
+        }
     }
 
     private void Upsert(InstanceSnapshotDto instance)
