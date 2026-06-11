@@ -53,11 +53,11 @@
 - [x] TTS notification per instance (local engine — sherpa-onnx/Piper wired with per-slot voice assignment, download scripts `scripts/download-tts-model.sh|.ps1`, startup diagnostics, graceful degradation with warn-once when no model is present)
 
 ### Phase 3: TUI + Full Voice
-- [ ] Daemon internal API (WebSocket for real-time updates)
+- [x] Daemon internal API (WebSocket for real-time updates) — `/api/events`: snapshot on connect, then live instance/daemon events; bounded per-instance activity log on the daemon
 - [x] TUI shell (Terminal.Gui — main window, panes, status bar) — scaffolded
-- [ ] Agent list view with real-time state (connect to daemon)
-- [ ] Agent detail view with activity log
-- [ ] Settings view
+- [x] Agent list view with real-time state (connect to daemon) — initial GET /api/state + WebSocket stream, auto-reconnect with exponential backoff (1s → 30s); shows number, name, state, window binding, desktop
+- [x] Agent detail view with activity log — newest-first, fed by hook/daemon events
+- [ ] Settings view — stub only (read-only pane pointing at appsettings.json, toggled with S); editing TBD
 - [ ] On-demand response reading (Ctrl+Shift+N)
 - [ ] ElevenLabs TTS for response reading
 

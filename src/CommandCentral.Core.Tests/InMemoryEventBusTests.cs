@@ -57,6 +57,46 @@ public class InMemoryEventBusTests
     }
 
     [Fact]
+    public void Publish_DispatchesInstanceSubscribersInSubscriptionOrder()
+    {
+        var order = new List<int>();
+        _bus.SubscribeInstances(_ => order.Add(1));
+        _bus.SubscribeInstances(_ => order.Add(2));
+        _bus.SubscribeInstances(_ => order.Add(3));
+
+        _bus.Publish(new InstanceEvent(InstanceEventType.Added, "1"));
+
+        Assert.Equal([1, 2, 3], order);
+    }
+
+    [Fact]
+    public void Publish_DispatchesDaemonSubscribersInSubscriptionOrder()
+    {
+        var order = new List<int>();
+        _bus.SubscribeDaemon(_ => order.Add(1));
+        _bus.SubscribeDaemon(_ => order.Add(2));
+        _bus.SubscribeDaemon(_ => order.Add(3));
+
+        _bus.Publish(new DaemonEvent(DaemonEventType.PttStarted, "1"));
+
+        Assert.Equal([1, 2, 3], order);
+    }
+
+    [Fact]
+    public void Publish_AfterMiddleSubscriberDisposed_PreservesOrderOfRest()
+    {
+        var order = new List<int>();
+        _bus.SubscribeInstances(_ => order.Add(1));
+        var middle = _bus.SubscribeInstances(_ => order.Add(2));
+        _bus.SubscribeInstances(_ => order.Add(3));
+
+        middle.Dispose();
+        _bus.Publish(new InstanceEvent(InstanceEventType.Added, "1"));
+
+        Assert.Equal([1, 3], order);
+    }
+
+    [Fact]
     public void Publish_WithNoSubscribers_DoesNotThrow()
     {
         var evt = new InstanceEvent(InstanceEventType.Added, "1");

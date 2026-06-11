@@ -97,6 +97,7 @@ public class PushToTalkHandlerTests
     {
         public bool IsAvailable => false;
         public bool IsWindowOnCurrentDesktop(nint hwnd) => true;
+        public Guid GetWindowDesktopId(nint hwnd) => Guid.Empty;
         public Task SwitchToDesktopOfWindowAsync(nint hwnd, CancellationToken ct = default) => Task.CompletedTask;
         public DesktopContext GetCurrentContext() => default;
         public Task RestoreContextAsync(DesktopContext context, CancellationToken ct = default) => Task.CompletedTask;

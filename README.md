@@ -173,14 +173,38 @@ tab GUID (`WT_SESSION`) is recorded per instance for diagnostics.
 dotnet run --project src/CommandCentral.Tui/
 ```
 
-Shows registered instances, their states, and activity log. Connects to the daemon via HTTP polling.
+Pass a different daemon URL as the first argument if needed:
+
+```powershell
+dotnet run --project src/CommandCentral.Tui/ -- http://localhost:9000
+```
+
+The TUI is a live view of the daemon. It fetches an initial snapshot over
+`GET /api/state`, then subscribes to the `/api/events` WebSocket stream for
+real-time updates: no polling. If the daemon restarts, the TUI shows a
+disconnected status and reconnects automatically with exponential backoff
+(1s doubling up to 30s).
+
+**Left pane** — agent list: number, project name, state, window binding
+(`W✓`/`W✗`), and virtual desktop (`D:xxxx`, first hex chars of the desktop id).
+
+**Right pane** — detail for the selected agent: status, project path, voice,
+session id, window/desktop binding, and a newest-first activity log
+(hooks, prompts, STT/TTS events).
+
+| Key | Action |
+|-----|--------|
+| `↑` / `↓` | Select agent |
+| `S` | Toggle settings pane (placeholder for now) |
+| `Q` | Quit (daemon keeps running) |
 
 ## API
 
 | Endpoint | Purpose |
 |----------|---------|
 | `GET /health` | Daemon health check |
-| `GET /api/state` | Full state snapshot (instances, selected ID) |
+| `GET /api/state` | Full state snapshot (instances, selected ID, recent activity) |
+| `WS /api/events` | Real-time event stream (snapshot on connect, then instance/daemon events as JSON) |
 | `POST /hooks/session-start` | Claude Code SessionStart hook |
 | `POST /hooks/stop` | Claude Code Stop hook |
 | `POST /hooks/notification` | Claude Code Notification hook |
