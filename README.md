@@ -138,6 +138,23 @@ All hotkeys use a **leader key** pattern: press `Ctrl+Shift+Q` first to activate
 | `M` | Mute/unmute all audio |
 | `R` | Rebind selected instance to the current foreground window |
 
+### Response Reading (leader, then press)
+
+| Key | Action |
+|-----|--------|
+| `Ctrl+1` through `Ctrl+9` | Read instance N's last response aloud (press again to stop) |
+| `P` | Read selected instance's last response aloud (press again to stop) |
+
+Responses are captured by the Stop hook: it extracts the last assistant message from the
+session transcript (requires `jq` in WSL) and sends it to the daemon. Markdown is stripped
+before speaking (code blocks become "code block omitted") and reads are capped at
+`Tts:MaxResponseChars` characters (default 1500, 0 = unlimited) to bound cloud TTS cost.
+
+Reading uses the `Tts:ResponseEngine` (default Voxtral, Mistral's cloud TTS with per-slot
+voice cloning). If it is unavailable (no API key), reads fall back to the local
+notification engine. Re-run `scripts/install-hooks.sh` after upgrading to get the
+transcript-extraction Stop hook.
+
 ### Cross-Desktop Behavior
 
 - **Same desktop**: PTT injects text immediately
@@ -231,6 +248,8 @@ Edit `src/CommandCentral.Daemon/appsettings.json`:
     },
     "Tts": {
       "NotificationEngine": "SherpaOnnx",  // SherpaOnnx (local) | Voxtral (cloud) | Disabled
+      "ResponseEngine": "Voxtral",          // engine for on-demand response reading
+      "MaxResponseChars": 1500,             // cap per read (cost guard), 0 = unlimited
       "Voices": {}                          // optional explicit slot → voice overrides
     },
     "LocalTts": {

@@ -32,6 +32,18 @@
 - **API key / shared secret**: Hook requests include an `Authorization` header with a shared secret. Daemon rejects requests without it. Secret auto-generated on first run, stored in appsettings, and injected into hook curl commands by the install script. Prevents rogue processes from sending fake hooks even on localhost.
 - **Rate limiting**: Throttle hook endpoints to prevent abuse (e.g. max 10 requests/second per session)
 
+## Portability
+- **Linux/cross-platform support**: The core (daemon, hooks, TUI, event bus, Whisper, sherpa-onnx,
+  SharpHook on X11) is already portable .NET. Windows-only code is isolated to two adapters in
+  `CommandCentral.Input/Platform/` (`IWindowManager`, `IVirtualDesktopService`). A port needs:
+  - Linux implementations of those two interfaces (X11: EWMH; Wayland: mostly blocked by design)
+  - A non-NAudio audio capture/playback backend (PortAudio/miniaudio/PipeWire) for VoiceToText/TextToVoice
+  - **tmux injection strategy** (the interesting bit): run instances in tmux panes, SessionStart hook
+    reports `$TMUX_PANE`, injection becomes `tmux send-keys` to a pane id. No focus stealing, no
+    compositor APIs, works on X11/Wayland/SSH, and immune to the shared-HWND Windows Terminal tab
+    problem. Could become the preferred mode even beyond Linux (WSL-side tmux).
+  - Keep the discipline: nothing Win32 outside `Platform/`.
+
 ## Technical
 - **WASM STT**: Run Whisper in browser-based UI instead of native
 - **GPU acceleration**: Use CUDA/DirectML for faster Whisper inference

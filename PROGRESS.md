@@ -1,6 +1,6 @@
 # Progress Tracker
 
-## Current Phase: Phase 2 — Multi-Instance + TTS
+## Current Phase: Phase 3 — TUI + Full Voice (Phase 2 complete)
 
 ### Priority: Hotkey Redesign (DONE)
 - [x] Leader key redesign — only `Ctrl+Shift+Q` intercepted globally. All other bindings (PTT, focus, cycle, quick-back, mute) activate only during a 2s leader window. State machine: Idle → LeaderActive → PttActive. No more keyboard hijacking. FocusPtt bindings dropped (use focus then PTT separately). KeyCombo.Matches now rejects extra Ctrl modifier for plain-key bindings.
@@ -58,15 +58,15 @@
 - [x] Agent list view with real-time state (connect to daemon) — initial GET /api/state + WebSocket stream, auto-reconnect with exponential backoff (1s → 30s); shows number, name, state, window binding, desktop
 - [x] Agent detail view with activity log — newest-first, fed by hook/daemon events
 - [ ] Settings view — stub only (read-only pane pointing at appsettings.json, toggled with S); editing TBD
-- [ ] On-demand response reading (Ctrl+Shift+N)
-- [ ] ElevenLabs TTS for response reading
+- [x] On-demand response reading — leader, then `Ctrl+1-9` (instance N) or `P` (selected); toggle to stop. Stop hook extracts the last assistant message from the transcript (jq), daemon stores it per instance; markdown stripped and capped (`Tts:MaxResponseChars`) before speaking
+- [x] Voxtral TTS for response reading (replaces planned ElevenLabs — too expensive; engine is swappable via `Tts:ResponseEngine`, falls back to local notification engine when unavailable)
 
 ### Phase 4: Polish & Extras
 - [ ] Vosk streaming STT
 - [ ] Visual PTT feedback in TUI
 - [ ] Audio ducking
 - [ ] Activity log / transcript viewer
-- [ ] Auto-reconnect
+- [x] Auto-reconnect (TUI ↔ daemon, exponential backoff 1s → 30s — landed with the real-time TUI)
 - [x] Persistent config across daemon restarts (JSON state store at `%LOCALAPPDATA%\CommandCentral\state.json` — voice assignments + selected instance; configurable via `Persistence:StateFilePath`)
 
 ### Known Issues
