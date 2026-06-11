@@ -91,6 +91,7 @@ if (builder.Configuration["COMMANDCENTRAL_HEADLESS_ONLY"] is null &&
     builder.Services.AddSingleton<IKeystrokeInjector, KeystrokeInjector>();
     builder.Services.AddSingleton<IAudioInputManager, AudioInputManager>();
     builder.Services.AddSingleton<PushToTalkHandler>();
+    builder.Services.AddSingleton<ResponseReadHandler>();
     builder.Services.AddSingleton<HotkeyManager>();
 
     // Output services

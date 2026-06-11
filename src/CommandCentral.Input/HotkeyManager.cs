@@ -28,6 +28,8 @@ public sealed class HotkeyManager : IDisposable
     // Leader-mode bindings (active only during leader window)
     private readonly Dictionary<KeyCombo, string> _pttBindings = [];
     private readonly Dictionary<KeyCombo, string> _focusBindings = [];
+    private readonly Dictionary<KeyCombo, string> _readBindings = [];
+    private readonly KeyCombo _readSelectedCombo;
     private readonly KeyCombo _pttSelectedCombo;
     private readonly KeyCombo _cycleCombo;
     private readonly KeyCombo _quickBackCombo;
@@ -39,8 +41,11 @@ public sealed class HotkeyManager : IDisposable
     private Timer? _leaderTimer;
     private KeyCode _pttKeyCode;
 
+    private readonly ResponseReadHandler _responseReadHandler;
+
     public HotkeyManager(
         PushToTalkHandler pttHandler,
+        ResponseReadHandler responseReadHandler,
         IInstanceRegistry registry,
         IVirtualDesktopService virtualDesktop,
         IWindowBindingService windowBinding,
@@ -50,6 +55,7 @@ public sealed class HotkeyManager : IDisposable
         ILogger<HotkeyManager> logger)
     {
         _pttHandler = pttHandler;
+        _responseReadHandler = responseReadHandler;
         _registry = registry;
         _virtualDesktop = virtualDesktop;
         _windowBinding = windowBinding;
@@ -89,6 +95,20 @@ public sealed class HotkeyManager : IDisposable
             }
         }
 
+        foreach (var (comboStr, instanceId) in hotkeys.ReadResponseBindings)
+        {
+            if (KeyCombo.TryParse(comboStr, out var combo))
+            {
+                _readBindings[combo] = instanceId;
+                _logger.LogDebug("Leader Read binding: {Combo} → instance {Id}", comboStr, instanceId);
+            }
+            else
+            {
+                _logger.LogWarning("Invalid Read binding key combo: {Combo}", comboStr);
+            }
+        }
+
+        _readSelectedCombo = KeyCombo.Parse(hotkeys.ReadResponseSelected);
         _pttSelectedCombo = KeyCombo.Parse(hotkeys.PttSelectedInstance);
         _cycleCombo = KeyCombo.Parse(hotkeys.CycleInstance);
         _quickBackCombo = KeyCombo.Parse(hotkeys.QuickBack);
@@ -169,6 +189,19 @@ public sealed class HotkeyManager : IDisposable
             }
         }
 
+        // Check response-read bindings (Ctrl+N — toggle reading last response)
+        foreach (var (combo, instanceId) in _readBindings)
+        {
+            if (combo.Matches(mask, e.Data.KeyCode))
+            {
+                e.SuppressEvent = true;
+                DeactivateLeader();
+                _logger.LogDebug("Leader → Read response of instance {Id}", instanceId);
+                _ = Task.Run(() => _responseReadHandler.ToggleReadAsync(instanceId));
+                return;
+            }
+        }
+
         // Check PTT bindings (1-9 — hold to record)
         foreach (var (combo, instanceId) in _pttBindings)
         {
@@ -193,6 +226,16 @@ public sealed class HotkeyManager : IDisposable
             CancelLeaderTimer();
             _logger.LogDebug("Leader → PTT selected instance");
             _ = Task.Run(() => _pttHandler.StartAsync());
+            return;
+        }
+
+        // Read selected instance's last response (P — toggle)
+        if (_readSelectedCombo.Matches(mask, e.Data.KeyCode))
+        {
+            e.SuppressEvent = true;
+            DeactivateLeader();
+            _logger.LogDebug("Leader → Read response of selected instance");
+            _ = Task.Run(() => _responseReadHandler.ToggleReadAsync());
             return;
         }
 

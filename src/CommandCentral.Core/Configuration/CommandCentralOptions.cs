@@ -56,6 +56,30 @@ public sealed class HotkeyOptions
         ["Shift+9"] = "9"
     };
 
+    /// <summary>
+    /// Response-read bindings active during leader mode: key → instance ID.
+    /// Toggles reading the instance's last response aloud. Instant action.
+    /// Default: Ctrl+1-9 → instance "1"-"9".
+    /// </summary>
+    public Dictionary<string, string> ReadResponseBindings { get; set; } = new()
+    {
+        ["Ctrl+1"] = "1",
+        ["Ctrl+2"] = "2",
+        ["Ctrl+3"] = "3",
+        ["Ctrl+4"] = "4",
+        ["Ctrl+5"] = "5",
+        ["Ctrl+6"] = "6",
+        ["Ctrl+7"] = "7",
+        ["Ctrl+8"] = "8",
+        ["Ctrl+9"] = "9"
+    };
+
+    /// <summary>
+    /// Toggle reading the selected instance's last response aloud
+    /// (leader mode). Instant action.
+    /// </summary>
+    public string ReadResponseSelected { get; set; } = "P";
+
     /// <summary>PTT for currently selected instance (leader mode). Hold to record.</summary>
     public string PttSelectedInstance { get; set; } = "Space";
 
@@ -90,7 +114,20 @@ public sealed class TtsOptions
     /// or "Disabled"/"None" to turn notifications off.
     /// </summary>
     public string NotificationEngine { get; set; } = "SherpaOnnx";
+
+    /// <summary>
+    /// Engine for on-demand response reading: "Voxtral" (cloud, default),
+    /// "SherpaOnnx" (local), or "Disabled"/"None". Falls back to the
+    /// notification engine when the configured engine is unusable.
+    /// </summary>
     public string ResponseEngine { get; set; } = "Voxtral";
+
+    /// <summary>
+    /// Maximum characters of a response spoken per read (after markdown
+    /// stripping). Guards cloud TTS cost and listening time. 0 = unlimited.
+    /// </summary>
+    public int MaxResponseChars { get; set; } = 1500;
+
     public Dictionary<string, VoiceOptions> Voices { get; set; } = new();
 
     /// <summary>

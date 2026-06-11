@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "curl -sf -X POST http://localhost:9000/hooks/stop -H 'Content-Type: application/json' -d @- >/dev/null 2>&1 || true",
+            "command": "P=$(cat); TP=$(printf '%s' \"$P\" | jq -r '.transcript_path // empty' 2>/dev/null); if [ -n \"$TP\" ] && [ -f \"$TP\" ]; then L=$(tac \"$TP\" 2>/dev/null | jq -c 'select(.type==\"assistant\") | (.message.content // []) | if type==\"string\" then . else (map(select(.type==\"text\") | .text) | join(\"\\n\")) end | select(length>0) | .[0:8000]' 2>/dev/null | head -n1); if [ -n \"$L\" ]; then P2=$(printf '%s' \"$P\" | jq -c --argjson lam \"$L\" '. + {last_assistant_message: $lam}' 2>/dev/null) && P=\"$P2\"; fi; fi; printf '%s' \"$P\" | curl -sf -X POST http://localhost:9000/hooks/stop -H 'Content-Type: application/json' -d @- >/dev/null 2>&1 || true",
             "timeout": 10
           }
         ]
