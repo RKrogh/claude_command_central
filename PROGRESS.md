@@ -63,7 +63,7 @@
 
 ### Phase 4: Polish & Extras
 - [ ] Vosk streaming STT
-- [ ] Visual PTT feedback in TUI
+- [x] Visual PTT feedback in TUI (header REC/TTS/LEADER badges + per-card recording marker, driven by the event stream)
 - [ ] Audio ducking
 - [ ] Activity log / transcript viewer
 - [x] Auto-reconnect (TUI ↔ daemon, exponential backoff 1s → 30s — landed with the real-time TUI)
