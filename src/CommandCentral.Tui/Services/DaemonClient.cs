@@ -1,22 +1,26 @@
 using System.Net.Http.Json;
+using System.Text.Json;
+using CommandCentral.Core.Api;
 
 namespace CommandCentral.Tui.Services;
 
 /// <summary>
-/// HTTP client for communicating with the Command Central daemon.
-/// WebSocket support will be added in Phase 3 for real-time updates.
+/// HTTP client for the Command Central daemon. Used for the initial state
+/// fetch; live updates arrive via <see cref="DaemonEventStreamClient"/>.
 /// </summary>
 public sealed class DaemonClient(string baseUrl = "http://localhost:9000") : IDisposable
 {
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
     private readonly HttpClient _http = new() { BaseAddress = new Uri(baseUrl) };
 
-    public async Task<DaemonState?> GetStateAsync(CancellationToken ct = default)
+    public async Task<StateSnapshotDto?> GetStateAsync(CancellationToken ct = default)
     {
         try
         {
-            return await _http.GetFromJsonAsync<DaemonState>("/api/state", ct);
+            return await _http.GetFromJsonAsync<StateSnapshotDto>("/api/state", JsonOptions, ct);
         }
-        catch (HttpRequestException)
+        catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException)
         {
             return null;
         }
@@ -29,28 +33,11 @@ public sealed class DaemonClient(string baseUrl = "http://localhost:9000") : IDi
             var response = await _http.GetAsync("/health", ct);
             return response.IsSuccessStatusCode;
         }
-        catch
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
             return false;
         }
     }
 
     public void Dispose() => _http.Dispose();
-}
-
-public sealed class DaemonState
-{
-    public string? SelectedInstanceId { get; set; }
-    public List<InstanceDto> Instances { get; set; } = [];
-}
-
-public sealed class InstanceDto
-{
-    public string Id { get; set; } = "";
-    public string? SessionId { get; set; }
-    public string? Cwd { get; set; }
-    public string? ProjectName { get; set; }
-    public string State { get; set; } = "Idle";
-    public string? VoiceProfile { get; set; }
-    public DateTime LastActivity { get; set; }
 }

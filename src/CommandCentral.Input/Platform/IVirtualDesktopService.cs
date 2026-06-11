@@ -10,6 +10,9 @@ public interface IVirtualDesktopService
     /// <summary>Check if a window is on the currently active virtual desktop.</summary>
     bool IsWindowOnCurrentDesktop(nint hwnd);
 
+    /// <summary>Get the id of the virtual desktop containing the window, or Guid.Empty if unknown.</summary>
+    Guid GetWindowDesktopId(nint hwnd);
+
     /// <summary>Switch to the virtual desktop containing the given window.</summary>
     Task SwitchToDesktopOfWindowAsync(nint hwnd, CancellationToken ct = default);
 

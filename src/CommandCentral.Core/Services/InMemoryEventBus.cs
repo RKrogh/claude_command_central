@@ -1,37 +1,61 @@
-using System.Collections.Concurrent;
 using CommandCentral.Core.Events;
 
 namespace CommandCentral.Core.Services;
 
+/// <summary>
+/// In-process event bus. Subscribers are dispatched synchronously in
+/// subscription order, so a subscriber registered earlier always observes an
+/// event before one registered later. The daemon relies on this: the
+/// activity log subscribes at startup, before any event-stream socket, so
+/// event DTOs built by the stream already include the activity entry for the
+/// event being relayed.
+/// </summary>
 public sealed class InMemoryEventBus : IEventBus
 {
-    private readonly ConcurrentDictionary<Guid, Action<InstanceEvent>> _instanceSubscribers = new();
-    private readonly ConcurrentDictionary<Guid, Action<DaemonEvent>> _daemonSubscribers = new();
+    private readonly Lock _lock = new();
+    private readonly List<Action<InstanceEvent>> _instanceSubscribers = [];
+    private readonly List<Action<DaemonEvent>> _daemonSubscribers = [];
 
     public void Publish(InstanceEvent instanceEvent)
     {
-        foreach (var handler in _instanceSubscribers.Values)
+        foreach (var handler in Snapshot(_instanceSubscribers))
             handler(instanceEvent);
     }
 
     public void Publish(DaemonEvent daemonEvent)
     {
-        foreach (var handler in _daemonSubscribers.Values)
+        foreach (var handler in Snapshot(_daemonSubscribers))
             handler(daemonEvent);
     }
 
-    public IDisposable SubscribeInstances(Action<InstanceEvent> handler)
+    public IDisposable SubscribeInstances(Action<InstanceEvent> handler) =>
+        Subscribe(_instanceSubscribers, handler);
+
+    public IDisposable SubscribeDaemon(Action<DaemonEvent> handler) =>
+        Subscribe(_daemonSubscribers, handler);
+
+    private T[] Snapshot<T>(List<T> subscribers)
     {
-        var id = Guid.NewGuid();
-        _instanceSubscribers[id] = handler;
-        return new Subscription(() => _instanceSubscribers.TryRemove(id, out _));
+        lock (_lock)
+        {
+            return [.. subscribers];
+        }
     }
 
-    public IDisposable SubscribeDaemon(Action<DaemonEvent> handler)
+    private Subscription Subscribe<T>(List<Action<T>> subscribers, Action<T> handler)
     {
-        var id = Guid.NewGuid();
-        _daemonSubscribers[id] = handler;
-        return new Subscription(() => _daemonSubscribers.TryRemove(id, out _));
+        lock (_lock)
+        {
+            subscribers.Add(handler);
+        }
+
+        return new Subscription(() =>
+        {
+            lock (_lock)
+            {
+                subscribers.Remove(handler);
+            }
+        });
     }
 
     private sealed class Subscription(Action onDispose) : IDisposable

@@ -5,5 +5,6 @@
   <Project Path="CommandCentral.Input/CommandCentral.Input.csproj" />
   <Project Path="CommandCentral.Integration.Tests/CommandCentral.Integration.Tests.csproj" />
   <Project Path="CommandCentral.Output/CommandCentral.Output.csproj" />
+  <Project Path="CommandCentral.Tui.Tests/CommandCentral.Tui.Tests.csproj" />
   <Project Path="CommandCentral.Tui/CommandCentral.Tui.csproj" />
 </Solution>

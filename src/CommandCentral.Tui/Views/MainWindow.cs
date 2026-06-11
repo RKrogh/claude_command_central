@@ -5,16 +5,17 @@ namespace CommandCentral.Tui.Views;
 
 public sealed class MainWindow : Window
 {
-    private readonly DaemonClient _client;
+    private readonly TuiStateStore _store;
     private readonly AgentListView _agentList;
     private readonly AgentDetailView _agentDetail;
+    private readonly SettingsView _settings;
     private readonly StatusBarView _statusBar;
-    private DaemonState? _lastState;
     private string? _selectedAgentId;
+    private bool _showSettings;
 
-    public MainWindow(DaemonClient client)
+    public MainWindow(TuiStateStore store, string daemonUrl)
     {
-        _client = client;
+        _store = store;
         Title = "Command Central";
         ColorScheme = Colors.Base;
 
@@ -22,7 +23,7 @@ public sealed class MainWindow : Window
         {
             X = 0,
             Y = 0,
-            Width = Dim.Percent(35),
+            Width = Dim.Percent(40),
             Height = Dim.Fill(1)
         };
 
@@ -32,6 +33,15 @@ public sealed class MainWindow : Window
             Y = 0,
             Width = Dim.Fill(),
             Height = Dim.Fill(1)
+        };
+
+        _settings = new SettingsView(daemonUrl)
+        {
+            X = Pos.Right(_agentList),
+            Y = 0,
+            Width = Dim.Fill(),
+            Height = Dim.Fill(1),
+            Visible = false
         };
 
         _statusBar = new StatusBarView
@@ -44,99 +54,89 @@ public sealed class MainWindow : Window
 
         _agentList.AgentSelected += OnAgentSelected;
 
-        Add(_agentList, _agentDetail, _statusBar);
+        Add(_agentList, _agentDetail, _settings, _statusBar);
 
-        // Key bindings
         KeyPress += OnKeyPress;
 
-        // Start polling
-        Application.MainLoop.AddTimeout(TimeSpan.FromSeconds(2), (_) =>
+        // Store mutations happen on background threads (WebSocket reader);
+        // marshal rendering onto the UI loop.
+        _store.Changed += () => Application.MainLoop?.Invoke(Render);
+
+        // Keep the clock and connection status fresh even when nothing happens.
+        Application.MainLoop.AddTimeout(TimeSpan.FromSeconds(1), (_) =>
         {
-            Task.Run(async () => await RefreshStateAsync());
-            return true; // keep polling
+            RenderStatusBar();
+            return true;
         });
 
-        // Initial load
-        Task.Run(async () => await RefreshStateAsync());
+        Render();
     }
 
     private void OnKeyPress(View.KeyEventEventArgs args)
     {
-        if (args.KeyEvent.Key == Key.q || args.KeyEvent.Key == Key.Q)
+        switch (args.KeyEvent.Key)
         {
-            Application.RequestStop();
-            args.Handled = true;
+            case Key.q or Key.Q:
+                Application.RequestStop();
+                args.Handled = true;
+                break;
+            case Key.s or Key.S:
+                _showSettings = !_showSettings;
+                _agentDetail.Visible = !_showSettings;
+                _settings.Visible = _showSettings;
+                SetNeedsDisplay();
+                args.Handled = true;
+                break;
         }
     }
 
     private void OnAgentSelected(string agentId)
     {
         _selectedAgentId = agentId;
-        UpdateDetailView();
+        RenderDetail();
     }
 
-    private async Task RefreshStateAsync()
+    private void Render()
     {
-        var state = await _client.GetStateAsync();
-        if (state is null)
+        var agents = _store.GetAgents();
+
+        if (_selectedAgentId is null || agents.All(a => a.Info.Id != _selectedAgentId))
+            _selectedAgentId = _store.SelectedInstanceId ?? agents.FirstOrDefault()?.Info.Id;
+
+        _agentList.UpdateAgents(
+            agents.Select(a => new AgentListItem(a.Info.Id, AgentFormatter.FormatListItem(a.Info))).ToList(),
+            _selectedAgentId);
+
+        RenderDetail();
+        RenderStatusBar();
+    }
+
+    private void RenderDetail()
+    {
+        var agent = _selectedAgentId is null ? null : _store.GetAgent(_selectedAgentId);
+        if (agent is null)
         {
-            _statusBar.SetConnectionStatus(false);
+            _agentDetail.ShowEmpty();
             return;
         }
 
-        _lastState = state;
-        _statusBar.SetConnectionStatus(true);
-
-        var agents = state.Instances.Select(i => new AgentListItem(
-            i.Id,
-            i.ProjectName ?? i.SessionId ?? "unknown",
-            GetStateIcon(i.State)
-        )).ToList();
-
-        Application.MainLoop.Invoke(() =>
-        {
-            _agentList.UpdateAgents(agents);
-            _statusBar.Update(
-                pttActive: false,
-                selectedId: state.SelectedInstanceId,
-                agentCount: state.Instances.Count,
-                maxAgents: 9,
-                audioLevel: 0
-            );
-
-            if (_selectedAgentId is null && state.Instances.Count > 0)
-            {
-                _selectedAgentId = state.Instances[0].Id;
-            }
-
-            UpdateDetailView();
-        });
-    }
-
-    private void UpdateDetailView()
-    {
-        if (_lastState is null || _selectedAgentId is null)
-            return;
-
-        var agent = _lastState.Instances.FirstOrDefault(i => i.Id == _selectedAgentId);
-        if (agent is null)
-            return;
-
-        _agentDetail.UpdateTitle($" Agent: {agent.ProjectName ?? "unknown"} (#{agent.Id}) ");
+        var info = agent.Info;
+        _agentDetail.UpdateTitle($" Agent: {info.ProjectName ?? "unknown"} (#{info.Id}) ");
         _agentDetail.UpdateAgent(
-            status: agent.State,
-            project: agent.Cwd,
-            voice: agent.VoiceProfile ?? "(auto)",
-            session: agent.SessionId?[..Math.Min(agent.SessionId.Length, 12)]
-        );
+            status: info.State,
+            project: info.Cwd,
+            voice: info.VoiceProfile ?? "(auto)",
+            session: info.SessionId is { Length: > 12 } s ? s[..12] : info.SessionId,
+            window: info.WindowBound ? "bound" : "not bound",
+            desktop: info.DesktopId?.ToString() ?? "unknown");
+
+        // Newest entries on top, like the activity feed in the plan mock.
+        _agentDetail.UpdateActivityLog(
+            agent.Activity.Select(AgentFormatter.FormatActivityEntry).Reverse().ToList());
     }
 
-    private static string GetStateIcon(string state) => state switch
+    private void RenderStatusBar()
     {
-        "Busy" => "● Busy",
-        "Idle" => "○ Idle",
-        "WaitingForInput" => "◐ Wait",
-        "Disconnected" => "✕ Disc",
-        _ => "? " + state
-    };
+        _statusBar.Update(_store.Connected, _store.SelectedInstanceId, _store.GetAgents().Count);
+    }
 }

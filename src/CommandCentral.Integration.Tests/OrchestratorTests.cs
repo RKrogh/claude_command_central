@@ -3,6 +3,7 @@ using CommandCentral.Core.Models;
 using CommandCentral.Core.Services;
 using CommandCentral.Daemon;
 using CommandCentral.Input;
+using CommandCentral.Input.Platform;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CommandCentral.Integration.Tests;
@@ -26,11 +27,22 @@ public class OrchestratorTests
             _registry,
             _eventBus,
             windowBinding,
+            new NullVirtualDesktopService(),
             new NullTtsNotifier(),
             new NullPersonalityManager(),
             new NullKeystrokeInjector(),
             new NullNotificationCacheWarmer(),
             NullLogger<Orchestrator>.Instance);
+    }
+
+    private sealed class NullVirtualDesktopService : IVirtualDesktopService
+    {
+        public bool IsAvailable => false;
+        public bool IsWindowOnCurrentDesktop(nint hwnd) => true;
+        public Guid GetWindowDesktopId(nint hwnd) => Guid.Empty;
+        public Task SwitchToDesktopOfWindowAsync(nint hwnd, CancellationToken ct = default) => Task.CompletedTask;
+        public DesktopContext GetCurrentContext() => new(nint.Zero, Guid.Empty);
+        public Task RestoreContextAsync(DesktopContext context, CancellationToken ct = default) => Task.CompletedTask;
     }
 
     private sealed class NullTtsNotifier : ITtsNotifier

@@ -2,6 +2,7 @@ using CommandCentral.Core.Events;
 using CommandCentral.Core.Models;
 using CommandCentral.Core.Services;
 using CommandCentral.Input;
+using CommandCentral.Input.Platform;
 using Microsoft.Extensions.Logging;
 
 namespace CommandCentral.Daemon;
@@ -10,6 +11,7 @@ public sealed class Orchestrator(
     IInstanceRegistry registry,
     IEventBus eventBus,
     IWindowBindingService windowBinding,
+    IVirtualDesktopService virtualDesktopService,
     ITtsNotifier ttsNotifier,
     IPersonalityManager personalityManager,
     IKeystrokeInjector keystrokeInjector,
@@ -37,6 +39,8 @@ public sealed class Orchestrator(
         // Resolve the terminal window for this session (marker best effort,
         // then foreground claim). Refined later on every prompt submit.
         var windowHandle = await windowBinding.BindOnSessionStartAsync(instance, windowMarker, ct);
+
+        RefreshDesktopId(instance);
 
         logger.LogInformation("Registered instance {Id} for session {SessionId} (project: {Project}, window: 0x{Handle:X}, source: {Source}, wt: {WtSession})",
             instance.Id, payload.SessionId, instance.ProjectName ?? "unknown", windowHandle, instance.WindowBindingSource, wtSession ?? "none");
@@ -116,7 +120,13 @@ public sealed class Orchestrator(
         // failed claim must never break hook processing.
         try
         {
-            await windowBinding.ClaimForegroundAsync(instance, WindowBindingSource.PromptSubmit, ct);
+            var claimed = await windowBinding.ClaimForegroundAsync(instance, WindowBindingSource.PromptSubmit, ct);
+
+            // Bindings are mutable per-prompt: a successful claim may have
+            // moved the instance to a different window, so the desktop id
+            // captured at session start can be stale. Refresh it.
+            if (claimed)
+                RefreshDesktopId(instance);
         }
         catch (Exception ex)
         {
@@ -214,6 +224,15 @@ public sealed class Orchestrator(
         }
 
         return windowsPath.Replace('\\', '/');
+    }
+
+    private void RefreshDesktopId(InstanceInfo instance)
+    {
+        if (instance.WindowHandle == nint.Zero || !virtualDesktopService.IsAvailable)
+            return;
+
+        var desktopId = virtualDesktopService.GetWindowDesktopId(instance.WindowHandle);
+        instance.DesktopId = desktopId == Guid.Empty ? null : desktopId;
     }
 
     private async Task WarmupNotificationCacheAsync(string slotId, CancellationToken ct)

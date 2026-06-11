@@ -5,7 +5,6 @@ namespace CommandCentral.Tui.Views;
 public sealed class StatusBarView : View
 {
     private readonly Label _content;
-    private bool _connected;
 
     public StatusBarView()
     {
@@ -20,21 +19,17 @@ public sealed class StatusBarView : View
         Add(_content);
     }
 
-    public void SetConnectionStatus(bool connected)
+    public void Update(bool connected, string? selectedId, int agentCount)
     {
-        _connected = connected;
-        if (!connected)
-            _content.Text = " ✕ Daemon not reachable │ Retrying...";
-    }
-
-    public void Update(bool pttActive, string? selectedId, int agentCount, int maxAgents, int audioLevel)
-    {
-        var conn = _connected ? "●" : "✕";
-        var ptt = pttActive ? "● rec" : "off";
-        var selected = selectedId ?? "--";
-        var audio = new string('■', audioLevel) + new string('□', 5 - audioLevel);
         var time = DateTime.Now.ToString("HH:mm");
 
-        _content.Text = $" {conn} │ PTT: {ptt} │ Selected: #{selected} │ Agents: {agentCount}/{maxAgents} │ Audio: {audio} │ {time}";
+        if (!connected)
+        {
+            _content.Text = $" ✕ Daemon not reachable │ Retrying... │ {time}";
+            return;
+        }
+
+        var selected = selectedId ?? "--";
+        _content.Text = $" ● Connected │ Selected: #{selected} │ Agents: {agentCount} │ {time}";
     }
 }

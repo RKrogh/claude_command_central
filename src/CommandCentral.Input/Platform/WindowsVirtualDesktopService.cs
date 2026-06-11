@@ -61,6 +61,23 @@ public sealed partial class WindowsVirtualDesktopService : IVirtualDesktopServic
         }
     }
 
+    public Guid GetWindowDesktopId(nint hwnd)
+    {
+        if (_manager is null || hwnd == nint.Zero)
+            return Guid.Empty;
+
+        try
+        {
+            _manager.GetWindowDesktopId(hwnd, out var desktopId);
+            return desktopId;
+        }
+        catch (COMException ex)
+        {
+            _logger.LogDebug(ex, "Failed to get desktop id for window 0x{Handle:X}", hwnd);
+            return Guid.Empty;
+        }
+    }
+
     public async Task SwitchToDesktopOfWindowAsync(nint hwnd, CancellationToken ct = default)
     {
         if (_manager is null || hwnd == nint.Zero)
