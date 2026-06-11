@@ -97,6 +97,30 @@ else:
 PYEOF
 }
 
+# Locate (and create if missing) the shared hook secret. The daemon reads the
+# same file, so both sides converge on one value. The secret itself is never
+# written into settings.json — hook commands read the file at runtime.
+resolve_secret_file() {
+    # Daemon runs on Windows: discover %LOCALAPPDATA% via WSL interop.
+    local win_localappdata
+    win_localappdata=$(cmd.exe /c 'echo %LOCALAPPDATA%' 2>/dev/null | tr -d '\r' || true)
+    if [[ -n "$win_localappdata" && "$win_localappdata" != *"%"* ]]; then
+        SECRET_FILE="$(wslpath "$win_localappdata")/CommandCentral/hook-secret"
+    else
+        # Native Linux fallback (daemon running on the same host)
+        SECRET_FILE="${XDG_DATA_HOME:-$HOME/.local/share}/CommandCentral/hook-secret"
+    fi
+
+    mkdir -p "$(dirname "$SECRET_FILE")"
+    if [[ ! -f "$SECRET_FILE" || ! -s "$SECRET_FILE" ]]; then
+        head -c32 /dev/urandom | od -An -tx1 | tr -d ' \n' > "$SECRET_FILE"
+        chmod 600 "$SECRET_FILE" 2>/dev/null || true
+        echo "Generated hook secret at $SECRET_FILE"
+    else
+        echo "Using existing hook secret at $SECRET_FILE"
+    fi
+}
+
 install_hooks() {
     # Back up existing settings
     if [[ -f "$SETTINGS_FILE" ]]; then
@@ -104,12 +128,15 @@ install_hooks() {
         echo "Backed up settings to $SETTINGS_FILE.bak"
     fi
 
-    python3 - "$HOOKS_FILE" "$SETTINGS_FILE" "$DAEMON_PORT" <<'PYEOF'
+    resolve_secret_file
+
+    python3 - "$HOOKS_FILE" "$SETTINGS_FILE" "$DAEMON_PORT" "$SECRET_FILE" <<'PYEOF'
 import json, sys
 
 hooks_file = sys.argv[1]
 settings_file = sys.argv[2]
 port = sys.argv[3]
+secret_file = sys.argv[4]
 
 with open(hooks_file) as f:
     new_hooks = json.load(f)["hooks"]
@@ -117,13 +144,14 @@ with open(hooks_file) as f:
 with open(settings_file) as f:
     settings = json.load(f)
 
-# Update port in hook commands if non-default
-if port != "9000":
-    for event, entries in new_hooks.items():
-        for entry in entries:
-            for hook in entry.get("hooks", []):
-                if "command" in hook:
+# Substitute the daemon port (if non-default) and the secret file path
+for event, entries in new_hooks.items():
+    for entry in entries:
+        for hook in entry.get("hooks", []):
+            if "command" in hook:
+                if port != "9000":
                     hook["command"] = hook["command"].replace("localhost:9000", f"localhost:{port}")
+                hook["command"] = hook["command"].replace("__CC_SECRET_FILE__", secret_file)
 
 existing_hooks = settings.get("hooks", {})
 

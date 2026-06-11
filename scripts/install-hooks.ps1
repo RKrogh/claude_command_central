@@ -116,6 +116,31 @@ function Test-IsCcHook {
     return $false
 }
 
+# Locate (and create if missing) the shared hook secret in %LOCALAPPDATA%.
+# The daemon reads the same file. Returns the WSL view of the path, because
+# the hook commands execute inside WSL.
+function Resolve-SecretFile {
+    $secretFile = Join-Path $env:LOCALAPPDATA "CommandCentral\hook-secret"
+    $secretDir = Split-Path $secretFile
+    if (-not (Test-Path $secretDir)) {
+        New-Item -ItemType Directory -Path $secretDir -Force | Out-Null
+    }
+
+    $existing = if (Test-Path $secretFile) { (Get-Content $secretFile -Raw -ErrorAction SilentlyContinue) } else { $null }
+    if (-not $existing -or -not $existing.Trim()) {
+        $bytes = [byte[]]::new(32)
+        [System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+        $secret = -join ($bytes | ForEach-Object { $_.ToString("x2") })
+        Set-Content -Path $secretFile -Value $secret -NoNewline -Encoding ascii
+        Write-Host "Generated hook secret at $secretFile"
+    } else {
+        Write-Host "Using existing hook secret at $secretFile"
+    }
+
+    $drive = $secretFile.Substring(0, 1).ToLower()
+    return "/mnt/$drive" + ($secretFile.Substring(2) -replace '\\', '/')
+}
+
 # --- Actions ---
 
 function Invoke-Check {
@@ -150,6 +175,8 @@ function Invoke-Check {
 function Invoke-Install {
     $hookTemplate = Get-Content $hookTemplatePath -Raw
     $hookTemplate = $hookTemplate -replace "localhost:9000", "${DaemonHost}:${Port}"
+    $wslSecretPath = Resolve-SecretFile
+    $hookTemplate = $hookTemplate.Replace("__CC_SECRET_FILE__", $wslSecretPath)
     $newHooks = ($hookTemplate | ConvertFrom-Json).hooks
 
     # Backup existing settings

@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "CC_MARKER=$(head -c8 /dev/urandom | od -An -tx1 | tr -d ' \\n'); CC_PID=$PPID; while [ \"$CC_PID\" -gt 1 ]; do CC_TTY=$(readlink /proc/$CC_PID/fd/0 2>/dev/null); case $CC_TTY in /dev/pts/*) break;; esac; CC_PID=$(awk '/PPid/{print $2}' /proc/$CC_PID/status 2>/dev/null); done; printf '\\033]0;cc:%s\\007' \"$CC_MARKER\" > \"$CC_TTY\" 2>/dev/null; curl -sf -X POST \"http://localhost:9000/hooks/session-start?wm=$CC_MARKER&wts=${WT_SESSION:-}\" -H 'Content-Type: application/json' -d @- >/dev/null 2>&1 || true",
+            "command": "CC_MARKER=$(head -c8 /dev/urandom | od -An -tx1 | tr -d ' \\n'); CC_PID=$PPID; while [ \"$CC_PID\" -gt 1 ]; do CC_TTY=$(readlink /proc/$CC_PID/fd/0 2>/dev/null); case $CC_TTY in /dev/pts/*) break;; esac; CC_PID=$(awk '/PPid/{print $2}' /proc/$CC_PID/status 2>/dev/null); done; printf '\\033]0;cc:%s\\007' \"$CC_MARKER\" > \"$CC_TTY\" 2>/dev/null; curl -sf -X POST \"http://localhost:9000/hooks/session-start?wm=$CC_MARKER&wts=${WT_SESSION:-}\" -H 'Content-Type: application/json' -H \"Authorization: Bearer $(cat '__CC_SECRET_FILE__' 2>/dev/null)\" -d @- >/dev/null 2>&1 || true",
             "timeout": 5
           }
         ]
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "P=$(cat); TP=$(printf '%s' \"$P\" | jq -r '.transcript_path // empty' 2>/dev/null); if [ -n \"$TP\" ] && [ -f \"$TP\" ]; then L=$(tac \"$TP\" 2>/dev/null | jq -c 'select(.type==\"assistant\") | (.message.content // []) | if type==\"string\" then . else (map(select(.type==\"text\") | .text) | join(\"\\n\")) end | select(length>0) | .[0:8000]' 2>/dev/null | head -n1); if [ -n \"$L\" ]; then P2=$(printf '%s' \"$P\" | jq -c --argjson lam \"$L\" '. + {last_assistant_message: $lam}' 2>/dev/null) && P=\"$P2\"; fi; fi; printf '%s' \"$P\" | curl -sf -X POST http://localhost:9000/hooks/stop -H 'Content-Type: application/json' -d @- >/dev/null 2>&1 || true",
+            "command": "curl -sf -X POST http://localhost:9000/hooks/stop -H 'Content-Type: application/json' -H \"Authorization: Bearer $(cat '__CC_SECRET_FILE__' 2>/dev/null)\" -d @- >/dev/null 2>&1 || true",
             "timeout": 10
           }
         ]
@@ -29,7 +29,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "curl -sf -X POST http://localhost:9000/hooks/notification -H 'Content-Type: application/json' -d @- >/dev/null 2>&1 || true",
+            "command": "curl -sf -X POST http://localhost:9000/hooks/notification -H 'Content-Type: application/json' -H \"Authorization: Bearer $(cat '__CC_SECRET_FILE__' 2>/dev/null)\" -d @- >/dev/null 2>&1 || true",
             "timeout": 5
           }
         ]
@@ -40,7 +40,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "curl -sf -X POST \"http://localhost:9000/hooks/prompt-submit?wts=${WT_SESSION:-}\" -H 'Content-Type: application/json' -d @- >/dev/null 2>&1 || true",
+            "command": "curl -sf -X POST \"http://localhost:9000/hooks/prompt-submit?wts=${WT_SESSION:-}\" -H 'Content-Type: application/json' -H \"Authorization: Bearer $(cat '__CC_SECRET_FILE__' 2>/dev/null)\" -d @- >/dev/null 2>&1 || true",
             "timeout": 5
           }
         ]
@@ -51,7 +51,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "curl -sf -X POST http://localhost:9000/hooks/session-end -H 'Content-Type: application/json' -d @- >/dev/null 2>&1 || true",
+            "command": "curl -sf -X POST http://localhost:9000/hooks/session-end -H 'Content-Type: application/json' -H \"Authorization: Bearer $(cat '__CC_SECRET_FILE__' 2>/dev/null)\" -d @- >/dev/null 2>&1 || true",
             "timeout": 5
           }
         ]
