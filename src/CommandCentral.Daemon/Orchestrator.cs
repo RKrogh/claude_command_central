@@ -1,7 +1,7 @@
 using CommandCentral.Core.Events;
 using CommandCentral.Core.Models;
 using CommandCentral.Core.Services;
-using CommandCentral.Input.Platform;
+using CommandCentral.Input;
 using Microsoft.Extensions.Logging;
 
 namespace CommandCentral.Daemon;
@@ -9,14 +9,14 @@ namespace CommandCentral.Daemon;
 public sealed class Orchestrator(
     IInstanceRegistry registry,
     IEventBus eventBus,
-    IWindowManager windowManager,
+    IWindowBindingService windowBinding,
     ITtsNotifier ttsNotifier,
     IPersonalityManager personalityManager,
     IKeystrokeInjector keystrokeInjector,
     INotificationCacheWarmer notificationCacheWarmer,
     ILogger<Orchestrator> logger) : IOrchestrator
 {
-    public async Task HandleSessionStartAsync(HookPayload payload, string? windowMarker = null, CancellationToken ct = default)
+    public async Task HandleSessionStartAsync(HookPayload payload, string? windowMarker = null, string? wtSession = null, CancellationToken ct = default)
     {
         if (payload.SessionId is null)
         {
@@ -32,13 +32,14 @@ public sealed class Orchestrator(
         }
 
         var instance = registry.Register(payload.SessionId, payload.Cwd);
+        instance.WtSession = wtSession;
 
-        // Resolve the terminal window for this session.
-        var windowHandle = await ResolveWindowHandleAsync(instance, windowMarker, ct);
-        instance.WindowHandle = windowHandle;
+        // Resolve the terminal window for this session (marker best effort,
+        // then foreground claim). Refined later on every prompt submit.
+        var windowHandle = await windowBinding.BindOnSessionStartAsync(instance, windowMarker, ct);
 
-        logger.LogInformation("Registered instance {Id} for session {SessionId} (project: {Project}, window: 0x{Handle:X}, marker: {Marker})",
-            instance.Id, payload.SessionId, instance.ProjectName ?? "unknown", windowHandle, windowMarker ?? "none");
+        logger.LogInformation("Registered instance {Id} for session {SessionId} (project: {Project}, window: 0x{Handle:X}, source: {Source}, wt: {WtSession})",
+            instance.Id, payload.SessionId, instance.ProjectName ?? "unknown", windowHandle, instance.WindowBindingSource, wtSession ?? "none");
 
         // Inject personality and play greeting independently of the hook timeout.
         // These can take longer than the hook's cancellation token allows.
@@ -97,14 +98,30 @@ public sealed class Orchestrator(
         return Task.CompletedTask;
     }
 
-    public Task HandlePromptSubmitAsync(HookPayload payload, CancellationToken ct = default)
+    public async Task HandlePromptSubmitAsync(HookPayload payload, string? wtSession = null, CancellationToken ct = default)
     {
-        if (payload.SessionId is null) return Task.CompletedTask;
+        if (payload.SessionId is null) return;
 
         var instance = registry.GetBySessionId(payload.SessionId);
-        if (instance is null) return Task.CompletedTask;
+        if (instance is null) return;
+
+        if (wtSession is not null)
+            instance.WtSession = wtSession;
 
         registry.UpdateState(payload.SessionId, InstanceState.Busy);
+
+        // Strongest window signal available: the user just submitted a prompt
+        // in this instance's terminal, so the foreground window IS that
+        // terminal. Claim/refresh the binding every time. Best effort — a
+        // failed claim must never break hook processing.
+        try
+        {
+            await windowBinding.ClaimForegroundAsync(instance, WindowBindingSource.PromptSubmit, ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Foreground window claim failed for instance {Id} on prompt submit", instance.Id);
+        }
 
         var promptPreview = payload.Prompt is { Length: > 60 }
             ? payload.Prompt[..60] + "..."
@@ -113,8 +130,6 @@ public sealed class Orchestrator(
         eventBus.Publish(new InstanceEvent(
             InstanceEventType.ActivityLogged, instance.Id,
             Message: $"Prompt: {promptPreview}"));
-
-        return Task.CompletedTask;
     }
 
     public Task HandleSessionEndAsync(HookPayload payload, CancellationToken ct = default)
@@ -211,42 +226,5 @@ public sealed class Orchestrator(
         {
             logger.LogWarning(ex, "Notification cache warmup failed for slot {Slot}", slotId);
         }
-    }
-
-    private async Task<nint> ResolveWindowHandleAsync(
-        InstanceInfo instance, string? windowMarker, CancellationToken ct)
-    {
-        if (windowMarker is not null)
-        {
-            // The hook set the terminal title to "cc:<marker>" — find that window.
-            // Delay to let the terminal title change propagate to the window manager.
-            await Task.Delay(500, ct);
-
-            var markerTag = $"cc:{windowMarker}";
-            var handle = await windowManager.FindWindowByTitleAsync(markerTag, ct);
-            if (handle != nint.Zero)
-            {
-                logger.LogDebug("Matched window by marker '{Marker}'", markerTag);
-                return handle;
-            }
-
-            logger.LogWarning("Window marker '{Marker}' not found in any window title", markerTag);
-        }
-
-        // Fallback: use foreground window
-        var claimedHandles = registry.GetAll()
-            .Where(i => i.Id != instance.Id && i.WindowHandle != nint.Zero)
-            .Select(i => i.WindowHandle)
-            .ToHashSet();
-
-        var foreground = await windowManager.GetForegroundWindowAsync(ct);
-        if (foreground != nint.Zero && !claimedHandles.Contains(foreground))
-        {
-            logger.LogDebug("Using foreground window 0x{Handle:X} as fallback", foreground);
-            return foreground;
-        }
-
-        logger.LogWarning("Could not resolve window handle for instance {Id}", instance.Id);
-        return nint.Zero;
     }
 }

@@ -11,8 +11,9 @@ public static class HookEndpoints
 
         hooks.MapPost("/session-start", async (HookPayload payload, IOrchestrator orchestrator, HttpContext ctx, CancellationToken ct) =>
         {
-            var windowMarker = ctx.Request.Query["wm"].FirstOrDefault();
-            await orchestrator.HandleSessionStartAsync(payload, windowMarker, ct);
+            var windowMarker = NonEmpty(ctx.Request.Query["wm"].FirstOrDefault());
+            var wtSession = NonEmpty(ctx.Request.Query["wts"].FirstOrDefault());
+            await orchestrator.HandleSessionStartAsync(payload, windowMarker, wtSession, ct);
             return Results.Ok();
         });
 
@@ -28,9 +29,10 @@ public static class HookEndpoints
             return Results.Ok();
         });
 
-        hooks.MapPost("/prompt-submit", async (HookPayload payload, IOrchestrator orchestrator) =>
+        hooks.MapPost("/prompt-submit", async (HookPayload payload, IOrchestrator orchestrator, HttpContext ctx, CancellationToken ct) =>
         {
-            await orchestrator.HandlePromptSubmitAsync(payload);
+            var wtSession = NonEmpty(ctx.Request.Query["wts"].FirstOrDefault());
+            await orchestrator.HandlePromptSubmitAsync(payload, wtSession, ct);
             return Results.Ok();
         });
 
@@ -40,4 +42,7 @@ public static class HookEndpoints
             return Results.Ok();
         });
     }
+
+    private static string? NonEmpty(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value;
 }

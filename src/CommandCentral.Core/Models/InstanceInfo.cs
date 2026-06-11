@@ -7,6 +7,15 @@ public sealed class InstanceInfo
     public string? Cwd { get; set; }
     public string? ProjectName { get; set; }
     public nint WindowHandle { get; set; }
+    public WindowBindingSource WindowBindingSource { get; set; } = WindowBindingSource.None;
+    public DateTime? WindowBoundAt { get; set; }
+
+    /// <summary>
+    /// Windows Terminal session GUID (WT_SESSION env var) reported by the hooks.
+    /// Diagnostics only — identifies the tab, but cannot be mapped to an HWND.
+    /// </summary>
+    public string? WtSession { get; set; }
+
     public string? VoiceProfile { get; set; }
     public InstanceState State { get; set; } = InstanceState.Idle;
     public DateTime LastActivity { get; set; } = DateTime.UtcNow;

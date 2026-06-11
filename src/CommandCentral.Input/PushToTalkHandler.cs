@@ -1,4 +1,5 @@
 using CommandCentral.Core.Events;
+using CommandCentral.Core.Models;
 using CommandCentral.Core.Services;
 using CommandCentral.Input.Platform;
 using Microsoft.Extensions.Logging;
@@ -11,6 +12,7 @@ public sealed class PushToTalkHandler(
     IInstanceRegistry registry,
     IEventBus eventBus,
     IVirtualDesktopService virtualDesktop,
+    IWindowBindingService windowBinding,
     InjectionBuffer injectionBuffer,
     DesktopNavigationContext navigationContext,
     ILogger<PushToTalkHandler> logger)
@@ -35,6 +37,8 @@ public sealed class PushToTalkHandler(
             return;
         }
 
+        await ClaimForegroundIfUnboundAsync(_activeInstanceId, ct);
+
         eventBus.Publish(new DaemonEvent(DaemonEventType.PttStarted, _activeInstanceId));
         await audioInput.StartCaptureAsync(ct);
         logger.LogInformation("PTT started for instance {Id}", _activeInstanceId);
@@ -57,6 +61,8 @@ public sealed class PushToTalkHandler(
             logger.LogWarning("Instance {Id} not found for Focus PTT", instanceId);
             return;
         }
+
+        await ClaimForegroundIfUnboundAsync(instanceId, ct);
 
         // Save current context for quick-back
         if (virtualDesktop.IsAvailable)
@@ -123,6 +129,21 @@ public sealed class PushToTalkHandler(
             // Different desktop — buffer for later injection
             injectionBuffer.Buffer(instanceId, text);
         }
+    }
+
+    /// <summary>
+    /// Last-resort binding: if the target instance has no window yet, the user
+    /// triggering PTT is most likely sitting in that instance's terminal —
+    /// claim the foreground window so injection has a target.
+    /// </summary>
+    private async Task ClaimForegroundIfUnboundAsync(string instanceId, CancellationToken ct)
+    {
+        var instance = registry.GetById(instanceId);
+        if (instance is null || instance.WindowHandle != nint.Zero)
+            return;
+
+        if (await windowBinding.ClaimForegroundAsync(instance, WindowBindingSource.PttClaim, ct))
+            logger.LogInformation("Instance {Id} had no window — claimed current foreground for PTT", instanceId);
     }
 
     private async Task InjectDirectAsync(Core.Models.InstanceInfo instance, string text, CancellationToken ct)

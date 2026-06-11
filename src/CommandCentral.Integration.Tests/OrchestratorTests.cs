@@ -2,7 +2,7 @@ using CommandCentral.Core.Events;
 using CommandCentral.Core.Models;
 using CommandCentral.Core.Services;
 using CommandCentral.Daemon;
-using CommandCentral.Input.Platform;
+using CommandCentral.Input;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CommandCentral.Integration.Tests;
@@ -11,28 +11,26 @@ public class OrchestratorTests
 {
     private readonly InMemoryEventBus _eventBus = new();
     private readonly InMemoryInstanceRegistry _registry;
+    private readonly FakeWindowManager _windowManager = new();
     private readonly Orchestrator _orchestrator;
 
     public OrchestratorTests()
     {
         _registry = new InMemoryInstanceRegistry(_eventBus);
+        var windowBinding = new WindowBindingService(
+            _windowManager, _registry, NullLogger<WindowBindingService>.Instance)
+        {
+            MarkerPropagationDelay = TimeSpan.Zero
+        };
         _orchestrator = new Orchestrator(
             _registry,
             _eventBus,
-            new NullWindowManager(),
+            windowBinding,
             new NullTtsNotifier(),
             new NullPersonalityManager(),
             new NullKeystrokeInjector(),
             new NullNotificationCacheWarmer(),
             NullLogger<Orchestrator>.Instance);
-    }
-
-    private sealed class NullWindowManager : IWindowManager
-    {
-        public Task<nint> GetForegroundWindowAsync(CancellationToken ct = default) => Task.FromResult(nint.Zero);
-        public Task FocusWindowAsync(nint windowHandle, CancellationToken ct = default) => Task.CompletedTask;
-        public Task<nint> FindWindowByTitleAsync(string titlePattern, CancellationToken ct = default) => Task.FromResult(nint.Zero);
-        public Task<IReadOnlyList<WindowInfo>> GetWindowsAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<WindowInfo>>([]);
     }
 
     private sealed class NullTtsNotifier : ITtsNotifier
@@ -93,6 +91,94 @@ public class OrchestratorTests
         await _orchestrator.HandleSessionStartAsync(payload);
 
         Assert.Empty(_registry.GetAll());
+    }
+
+    [Fact]
+    public async Task HandleSessionStart_BindsForegroundWindow_AndStoresWtSession()
+    {
+        _windowManager.ForegroundWindow = 0x42;
+
+        await _orchestrator.HandleSessionStartAsync(
+            new HookPayload { SessionId = "abc-123" }, windowMarker: null, wtSession: "wt-guid-1");
+
+        var instance = _registry.GetBySessionId("abc-123");
+        Assert.Equal(0x42, instance!.WindowHandle);
+        Assert.Equal(WindowBindingSource.SessionStartForeground, instance.WindowBindingSource);
+        Assert.Equal("wt-guid-1", instance.WtSession);
+    }
+
+    [Fact]
+    public async Task HandlePromptSubmit_ClaimsForegroundWindow()
+    {
+        await _orchestrator.HandleSessionStartAsync(new HookPayload { SessionId = "abc-123" });
+
+        // Instance 2+ scenario: no window resolved at session start,
+        // but the user is sitting in the terminal when submitting a prompt.
+        _windowManager.ForegroundWindow = 0x77;
+        await _orchestrator.HandlePromptSubmitAsync(new HookPayload
+        {
+            SessionId = "abc-123",
+            Prompt = "do work"
+        });
+
+        var instance = _registry.GetBySessionId("abc-123");
+        Assert.Equal(0x77, instance!.WindowHandle);
+        Assert.Equal(WindowBindingSource.PromptSubmit, instance.WindowBindingSource);
+    }
+
+    [Fact]
+    public async Task HandlePromptSubmit_RebindsWhenForegroundChanged()
+    {
+        _windowManager.ForegroundWindow = 0x10;
+        await _orchestrator.HandleSessionStartAsync(new HookPayload { SessionId = "abc-123" });
+
+        // The terminal window changed (e.g. session moved to a new terminal).
+        _windowManager.ForegroundWindow = 0x20;
+        await _orchestrator.HandlePromptSubmitAsync(new HookPayload { SessionId = "abc-123", Prompt = "x" });
+
+        Assert.Equal(0x20, _registry.GetBySessionId("abc-123")!.WindowHandle);
+    }
+
+    [Fact]
+    public async Task HandlePromptSubmit_KeepsBindingWhenNoForeground()
+    {
+        _windowManager.ForegroundWindow = 0x10;
+        await _orchestrator.HandleSessionStartAsync(new HookPayload { SessionId = "abc-123" });
+
+        _windowManager.ForegroundWindow = nint.Zero;
+        await _orchestrator.HandlePromptSubmitAsync(new HookPayload { SessionId = "abc-123", Prompt = "x" });
+
+        Assert.Equal(0x10, _registry.GetBySessionId("abc-123")!.WindowHandle);
+    }
+
+    [Fact]
+    public async Task HandlePromptSubmit_StoresWtSession()
+    {
+        await _orchestrator.HandleSessionStartAsync(new HookPayload { SessionId = "abc-123" });
+
+        await _orchestrator.HandlePromptSubmitAsync(
+            new HookPayload { SessionId = "abc-123", Prompt = "x" }, wtSession: "wt-guid-2");
+
+        Assert.Equal("wt-guid-2", _registry.GetBySessionId("abc-123")!.WtSession);
+    }
+
+    [Fact]
+    public async Task SecondInstanceOnSameDesktop_GetsWindowOnPromptSubmit()
+    {
+        // Instance 1 starts in terminal A (foreground).
+        _windowManager.ForegroundWindow = 0xA;
+        await _orchestrator.HandleSessionStartAsync(new HookPayload { SessionId = "s1" });
+
+        // Instance 2 starts in terminal B on the same desktop.
+        _windowManager.ForegroundWindow = 0xB;
+        await _orchestrator.HandleSessionStartAsync(new HookPayload { SessionId = "s2" });
+        Assert.Equal(0xB, _registry.GetBySessionId("s2")!.WindowHandle);
+
+        // User goes back to instance 1's terminal and submits a prompt — binding stays correct.
+        _windowManager.ForegroundWindow = 0xA;
+        await _orchestrator.HandlePromptSubmitAsync(new HookPayload { SessionId = "s1", Prompt = "x" });
+        Assert.Equal(0xA, _registry.GetBySessionId("s1")!.WindowHandle);
+        Assert.Equal(0xB, _registry.GetBySessionId("s2")!.WindowHandle);
     }
 
     [Fact]

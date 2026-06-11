@@ -11,7 +11,7 @@ Enables voice input (STT) targeted at specific instances and voice output (TTS) 
 - **HTTP server**: localhost endpoint receiving Claude Code hooks from WSL instances + internal API for TUI
 - **Dependencies**: VoiceToText and TextToVoice via NuGet packages (nuget.org)
 - **Claude Code integration**: Via hooks system (SessionStart, Stop, Notification, UserPromptSubmit, SessionEnd)
-- **Window targeting**: SessionStart hook sets a terminal title marker, daemon matches via EnumWindows
+- **Window targeting**: Foreground-claim binding — the foreground window is claimed at session start and refreshed on every UserPromptSubmit hook (title marker via EnumWindows kept as best effort; leader+R for manual rebind)
 - **Claude Code terminals**: Remain as-is in separate windows — Command Central is a control plane, not a replacement
 
 ## Key Design Decisions

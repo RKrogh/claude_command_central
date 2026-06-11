@@ -67,6 +67,13 @@ public sealed class HotkeyOptions
 
     /// <summary>Mute/unmute all audio (leader mode). Instant action.</summary>
     public string MuteAll { get; set; } = "M";
+
+    /// <summary>
+    /// Rebind the selected instance's window to the current foreground window
+    /// (leader mode). Instant action. Use when injection targets the wrong
+    /// window: focus the correct terminal, then leader + this key.
+    /// </summary>
+    public string RebindWindow { get; set; } = "R";
 }
 
 public sealed class SttOptions

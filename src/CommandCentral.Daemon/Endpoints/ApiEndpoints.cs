@@ -17,6 +17,10 @@ public static class ApiEndpoints
                 i.Cwd,
                 i.ProjectName,
                 State = i.State.ToString(),
+                Window = $"0x{i.WindowHandle:X}",
+                WindowBindingSource = i.WindowBindingSource.ToString(),
+                i.WindowBoundAt,
+                i.WtSession,
                 i.VoiceProfile,
                 i.LastActivity
             });
