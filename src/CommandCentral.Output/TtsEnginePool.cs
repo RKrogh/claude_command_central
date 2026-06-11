@@ -21,10 +21,31 @@ public sealed class TtsEnginePool(
     private enum EngineKind { Disabled, SherpaOnnx, Voxtral, Unknown }
 
     private int _warnedUnknownEngine;
+    private int _warnedResponseFallback;
 
-    public ITtsEngine? GetOrCreate(string slotId)
+    public ITtsEngine? GetOrCreate(string slotId, TtsPurpose purpose = TtsPurpose.Notification)
     {
-        switch (ConfiguredKind)
+        var kind = KindFor(purpose);
+        var engine = Resolve(kind, slotId);
+
+        // Response reads degrade to the notification engine (typically local)
+        // rather than going silent when the cloud engine is unconfigured.
+        if (engine is null && purpose == TtsPurpose.Response)
+        {
+            var fallbackKind = KindFor(TtsPurpose.Notification);
+            if (fallbackKind != kind && fallbackKind != EngineKind.Disabled)
+            {
+                WarnOnceResponseFallback(kind, fallbackKind);
+                engine = Resolve(fallbackKind, slotId);
+            }
+        }
+
+        return engine;
+    }
+
+    private ITtsEngine? Resolve(EngineKind kind, string slotId)
+    {
+        switch (kind)
         {
             case EngineKind.SherpaOnnx:
                 return sherpaPool.GetOrCreate(slotId);
@@ -38,7 +59,7 @@ public sealed class TtsEnginePool(
         }
     }
 
-    public string GetVoiceCacheKey(string slotId) => ConfiguredKind switch
+    public string GetVoiceCacheKey(string slotId) => KindFor(TtsPurpose.Notification) switch
     {
         EngineKind.SherpaOnnx => $"sherpa:{sherpaPool.ResolveVoiceKey(slotId)}",
         EngineKind.Voxtral => personalityManager.ResolveVoiceRefPath(slotId)
@@ -51,7 +72,24 @@ public sealed class TtsEnginePool(
         try
         {
             var opts = options.Value;
-            switch (ConfiguredKind)
+
+            var responseKind = KindFor(TtsPurpose.Response);
+            if (responseKind == EngineKind.Voxtral && string.IsNullOrEmpty(opts.Voxtral.ApiKey))
+            {
+                logger.LogWarning(
+                    "TTS response reading: Voxtral (cloud) configured but no API key set — " +
+                    "reads fall back to the notification engine. Set the key with: " +
+                    "dotnet user-secrets set \"CommandCentral:Voxtral:ApiKey\" \"<your-mistral-api-key>\" " +
+                    "--project src/CommandCentral.Daemon/");
+            }
+            else
+            {
+                logger.LogInformation(
+                    "TTS response reading: {Engine} engine (max {MaxChars} chars per read)",
+                    opts.Tts.ResponseEngine, opts.Tts.MaxResponseChars);
+            }
+
+            switch (KindFor(TtsPurpose.Notification))
             {
                 case EngineKind.Disabled:
                     logger.LogInformation(
@@ -103,9 +141,17 @@ public sealed class TtsEnginePool(
         }
     }
 
-    // Config binding can null out NotificationEngine despite the non-nullable
-    // declaration; treat null as "not set" and use the option's default.
-    private EngineKind ConfiguredKind => (options.Value.Tts.NotificationEngine?.Trim() ?? "SherpaOnnx") switch
+    // Config binding can null out the engine names despite the non-nullable
+    // declarations; treat null as "not set" and use the option's default.
+    private EngineKind KindFor(TtsPurpose purpose)
+    {
+        var (configured, fallback) = purpose == TtsPurpose.Response
+            ? (options.Value.Tts.ResponseEngine, "Voxtral")
+            : (options.Value.Tts.NotificationEngine, "SherpaOnnx");
+        return ParseKind(configured?.Trim() ?? fallback);
+    }
+
+    private static EngineKind ParseKind(string engine) => engine switch
     {
         "" => EngineKind.Disabled,
         var e when e.Equals("Disabled", StringComparison.OrdinalIgnoreCase) => EngineKind.Disabled,
@@ -120,9 +166,19 @@ public sealed class TtsEnginePool(
         if (Interlocked.Exchange(ref _warnedUnknownEngine, 1) == 0)
         {
             logger.LogWarning(
-                "Unknown TTS notification engine '{Engine}' — TTS notifications disabled. " +
-                "Valid values: SherpaOnnx, Voxtral, Disabled",
-                options.Value.Tts.NotificationEngine);
+                "Unknown TTS engine (notification: '{Notification}', response: '{Response}') — TTS disabled " +
+                "for that purpose. Valid values: SherpaOnnx, Voxtral, Disabled",
+                options.Value.Tts.NotificationEngine, options.Value.Tts.ResponseEngine);
+        }
+    }
+
+    private void WarnOnceResponseFallback(EngineKind from, EngineKind to)
+    {
+        if (Interlocked.Exchange(ref _warnedResponseFallback, 1) == 0)
+        {
+            logger.LogWarning(
+                "Response TTS engine {From} unavailable — falling back to {To} for response reading",
+                from, to);
         }
     }
 }

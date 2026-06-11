@@ -1,5 +1,7 @@
+using CommandCentral.Core.Configuration;
 using CommandCentral.Core.Services;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using TextToVoice.Core;
 
 namespace CommandCentral.Output;
@@ -8,6 +10,7 @@ public sealed class TtsNotifier(
     ITtsEnginePool enginePool,
     NotificationCache notificationCache,
     IPersonalityManager personalityManager,
+    IOptions<CommandCentralOptions> options,
     ILogger<TtsNotifier> logger) : ITtsNotifier
 {
     private static readonly Random Rng = new();
@@ -90,15 +93,26 @@ public sealed class TtsNotifier(
         try
         {
             var slotId = voiceProfile ?? "1";
-            var engine = enginePool.GetOrCreate(slotId);
+            var engine = enginePool.GetOrCreate(slotId, TtsPurpose.Response);
             if (engine is null)
             {
                 logger.LogWarning("No TTS engine available for reading response");
                 return;
             }
 
-            await engine.SpeakAsync(text, ct);
-            logger.LogDebug("TTS read response ({Length} chars)", text.Length);
+            var speech = ResponseSpeechSanitizer.Sanitize(text, options.Value.Tts.MaxResponseChars);
+            if (speech.Length == 0)
+            {
+                logger.LogDebug("Response for slot {Slot} contained nothing speakable", slotId);
+                return;
+            }
+
+            await engine.SpeakAsync(speech, ct);
+            logger.LogDebug("TTS read response ({Spoken} of {Original} chars)", speech.Length, text.Length);
+        }
+        catch (OperationCanceledException)
+        {
+            logger.LogDebug("TTS response reading cancelled");
         }
         catch (Exception ex)
         {

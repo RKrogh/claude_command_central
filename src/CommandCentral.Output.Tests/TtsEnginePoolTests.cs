@@ -99,6 +99,29 @@ public class TtsEnginePoolTests : IDisposable
         Assert.Equal("voxtral:gb_jane_neutral", pool.GetVoiceCacheKey("1"));
     }
 
+    [Fact]
+    public void GetOrCreate_ResponsePurpose_BothEnginesUnavailable_ReturnsNullWithFallbackWarning()
+    {
+        // Response engine defaults to Voxtral (no API key → null); fallback is
+        // the notification engine (sherpa, no models → null). No throw, one warning.
+        var pool = CreatePool("SherpaOnnx");
+
+        Assert.Null(pool.GetOrCreate("1", TtsPurpose.Response));
+        Assert.Null(pool.GetOrCreate("1", TtsPurpose.Response));
+
+        Assert.Equal(1, _logger.Count(LogLevel.Warning));
+        Assert.Contains("falling back", _logger.Entries.Single(e => e.Level == LogLevel.Warning).Message);
+    }
+
+    [Fact]
+    public void GetOrCreate_ResponsePurpose_NotificationDisabled_NoFallbackWarning()
+    {
+        var pool = CreatePool("Disabled");
+
+        Assert.Null(pool.GetOrCreate("1", TtsPurpose.Response));
+        Assert.Equal(0, _logger.Count(LogLevel.Warning));
+    }
+
     [Theory]
     [InlineData("SherpaOnnx")]
     [InlineData("Voxtral")]
@@ -120,8 +143,7 @@ public class TtsEnginePoolTests : IDisposable
 
         pool.LogStartupDiagnostics();
 
-        var warning = Assert.Single(_logger.Entries, e => e.Level == LogLevel.Warning).Message;
-        Assert.Contains("download-tts-model", warning);
+        Assert.Contains(_logger.Entries, e => e.Level == LogLevel.Warning && e.Message.Contains("download-tts-model"));
     }
 
     [Fact]
@@ -131,7 +153,6 @@ public class TtsEnginePoolTests : IDisposable
 
         pool.LogStartupDiagnostics();
 
-        var warning = Assert.Single(_logger.Entries, e => e.Level == LogLevel.Warning).Message;
-        Assert.Contains("user-secrets", warning);
+        Assert.Contains(_logger.Entries, e => e.Level == LogLevel.Warning && e.Message.Contains("user-secrets"));
     }
 }
