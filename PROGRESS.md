@@ -62,6 +62,7 @@
 - [x] Voxtral TTS for response reading (replaces planned ElevenLabs — too expensive; engine is swappable via `Tts:ResponseEngine`, falls back to local notification engine when unavailable)
 
 ### Phase 4: Polish & Extras
+- [x] Hook endpoint shared-secret auth (auto-generated secret file, constant-time Bearer check, install scripts wire the path; `HookAuth:Enabled` to opt out)
 - [ ] Vosk streaming STT
 - [ ] Visual PTT feedback in TUI
 - [ ] Audio ducking

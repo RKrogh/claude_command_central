@@ -8,6 +8,7 @@ public static class HookEndpoints
     public static void MapHookEndpoints(this WebApplication app)
     {
         var hooks = app.MapGroup("/hooks");
+        hooks.AddEndpointFilter(HookAuthentication.FilterAsync);
 
         hooks.MapPost("/session-start", async (HookPayload payload, IOrchestrator orchestrator, HttpContext ctx, CancellationToken ct) =>
         {
