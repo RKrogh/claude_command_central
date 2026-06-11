@@ -201,6 +201,29 @@ public sealed class VoiceOptions
     public string Engine { get; set; } = "Voxtral";
 }
 
+public sealed class HookAuthOptions
+{
+    /// <summary>
+    /// Require hook requests to present the shared secret in an
+    /// "Authorization: Bearer" header. Prevents other local processes from
+    /// sending fake hooks to the daemon.
+    /// </summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>
+    /// Explicit secret value, overriding the secret file. Intended for tests
+    /// and user-secrets; do not put real secrets in appsettings.json.
+    /// </summary>
+    public string? Secret { get; set; }
+
+    /// <summary>
+    /// Path to the secret file. Auto-generated on first daemon run when
+    /// missing. Supports environment variables.
+    /// Default: %LOCALAPPDATA%\CommandCentral\hook-secret
+    /// </summary>
+    public string? SecretFilePath { get; set; }
+}
+
 public sealed class PersistenceOptions
 {
     /// <summary>
@@ -226,4 +249,5 @@ public sealed class CommandCentralOptions
     public LocalTtsOptions LocalTts { get; set; } = new();
     public InstanceOptions Instances { get; set; } = new();
     public PersistenceOptions Persistence { get; set; } = new();
+    public HookAuthOptions HookAuth { get; set; } = new();
 }

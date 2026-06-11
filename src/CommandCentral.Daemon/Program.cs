@@ -104,6 +104,9 @@ if (builder.Configuration["COMMANDCENTRAL_HEADLESS_ONLY"] is null &&
     builder.Services.AddSingleton<INotificationCacheWarmer>(sp => sp.GetRequiredService<NotificationCache>());
     builder.Services.AddSingleton<ITtsNotifier, TtsNotifier>();
 
+    // Hook authentication: shared secret auto-generated on first run
+    builder.Services.AddSingleton<IHookSecretProvider, FileHookSecretProvider>();
+
     // Daemon hosted service (starts hotkey listener)
     builder.Services.AddHostedService<DaemonService>();
 
@@ -118,6 +121,7 @@ else
     builder.Services.AddSingleton<IPersonalityManager, NoopPersonalityManager>();
     builder.Services.AddSingleton<IKeystrokeInjector, NoopKeystrokeInjector>();
     builder.Services.AddSingleton<INotificationCacheWarmer, NoopNotificationCacheWarmer>();
+    builder.Services.AddSingleton<IHookSecretProvider, ConfigHookSecretProvider>();
 }
 
 var app = builder.Build();

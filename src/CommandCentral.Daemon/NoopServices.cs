@@ -1,5 +1,7 @@
+using CommandCentral.Core.Configuration;
 using CommandCentral.Core.Models;
 using CommandCentral.Core.Services;
+using Microsoft.Extensions.Options;
 
 namespace CommandCentral.Daemon;
 
@@ -26,6 +28,23 @@ internal sealed class NoopKeystrokeInjector : IKeystrokeInjector
 {
     public Task InjectTextAsync(nint windowHandle, string text, CancellationToken ct = default) => Task.CompletedTask;
     public Task InjectTextAndSubmitAsync(nint windowHandle, string text, CancellationToken ct = default) => Task.CompletedTask;
+}
+
+/// <summary>
+/// Headless/test-mode secret provider: honors an explicit configured secret
+/// (so auth can be tested) but never touches the filesystem. No secret
+/// configured → auth is not enforced, keeping tests hermetic.
+/// </summary>
+internal sealed class ConfigHookSecretProvider(IOptions<CommandCentralOptions> options) : IHookSecretProvider
+{
+    public string? Secret
+    {
+        get
+        {
+            var opts = options.Value.HookAuth;
+            return opts.Enabled && !string.IsNullOrEmpty(opts.Secret) ? opts.Secret : null;
+        }
+    }
 }
 
 internal sealed class NoopNotificationCacheWarmer : INotificationCacheWarmer
