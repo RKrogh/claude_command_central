@@ -17,8 +17,24 @@ var host = builder.Configuration.GetValue("CommandCentral:Server:Host", "127.0.0
 var port = builder.Configuration.GetValue("CommandCentral:Server:Port", 9000);
 builder.WebHost.UseUrls($"http://{host}:{port}");
 
+// Settings edited from the TUI are persisted as a JSON overlay and layered
+// on top of appsettings.json here. Headless/test mode skips the default
+// overlay so developer machines don't leak state into tests; an explicit
+// SettingsOverridesPath still applies (used by persistence tests).
+var headless = builder.Configuration["COMMANDCENTRAL_HEADLESS_ONLY"] is not null ||
+               Environment.GetEnvironmentVariable("COMMANDCENTRAL_HEADLESS_ONLY") is not null;
+var overridesPath = builder.Configuration["CommandCentral:Persistence:SettingsOverridesPath"];
+overridesPath = string.IsNullOrEmpty(overridesPath)
+    ? (headless ? null : SettingsOverrideStore.DefaultPath)
+    : Environment.ExpandEnvironmentVariables(overridesPath);
+if (overridesPath is not null)
+    builder.Configuration.AddJsonFile(overridesPath, optional: true, reloadOnChange: false);
+
 builder.Services.Configure<CommandCentralOptions>(
     builder.Configuration.GetSection("CommandCentral"));
+
+builder.Services.AddSingleton(sp => new SettingsOverrideStore(
+    overridesPath, sp.GetRequiredService<ILogger<SettingsOverrideStore>>()));
 
 // Resolve relative LocalTts model dir against content root (project root when
 // running via dotnet run), falling back to the binary base directory —
@@ -139,6 +155,7 @@ app.UseWebSockets();
 
 app.MapHookEndpoints();
 app.MapApiEndpoints();
+app.MapConfigEndpoints();
 
 app.MapGet("/health", () => Results.Ok(new { Status = "running", Timestamp = DateTime.UtcNow }));
 
