@@ -211,6 +211,14 @@ the log).
 dotnet run --project src/CommandCentral.Tui/
 ```
 
+The header shows the configured leader key at a glance. Press `S` for the settings
+pane: all effective config (hotkeys, voice, system) is listed, and the runtime-safe
+subset (notification/response TTS engine, max response chars) is editable inline with
+arrows/Enter. Edits apply to the daemon immediately via `PATCH /api/config` and persist
+to `%LOCALAPPDATA%\CommandCentral\settings-overrides.json`, layered over
+appsettings.json at startup, so the repo config stays clean. Hotkey changes still
+require editing appsettings.json and restarting the daemon.
+
 Pass a different daemon URL as the first argument if needed:
 
 ```powershell
