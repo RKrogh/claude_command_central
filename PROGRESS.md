@@ -57,7 +57,7 @@
 - [x] TUI shell (Terminal.Gui — main window, panes, status bar) — scaffolded
 - [x] Agent list view with real-time state (connect to daemon) — initial GET /api/state + WebSocket stream, auto-reconnect with exponential backoff (1s → 30s); shows number, name, state, window binding, desktop
 - [x] Agent detail view with activity log — newest-first, fed by hook/daemon events
-- [ ] Settings view — stub only (read-only pane pointing at appsettings.json, toggled with S); editing TBD
+- [x] Settings view — live config browser (hotkeys incl. leader key, voice, system) with inline editing of the runtime-safe subset (TTS engines, max response chars) via PATCH /api/config; edits apply instantly and persist to a settings-overrides file in %LOCALAPPDATA%
 - [x] On-demand response reading — leader, then `Ctrl+1-9` (instance N) or `P` (selected); toggle to stop. Stop hook extracts the last assistant message from the transcript (jq), daemon stores it per instance; markdown stripped and capped (`Tts:MaxResponseChars`) before speaking
 - [x] Voxtral TTS for response reading (replaces planned ElevenLabs — too expensive; engine is swappable via `Tts:ResponseEngine`, falls back to local notification engine when unavailable)
 
