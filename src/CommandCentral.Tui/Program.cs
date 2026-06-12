@@ -13,7 +13,7 @@ Application.Init();
 
 try
 {
-    var mainWindow = new MainWindow(store, daemonUrl);
+    var mainWindow = new MainWindow(store, client, daemonUrl);
     Application.Top.Add(mainWindow);
 
     // Fast first paint from a plain GET, then live updates over the
@@ -23,6 +23,8 @@ try
         var initial = await client.GetStateAsync(cts.Token);
         if (initial is not null)
             store.ApplySnapshot(initial);
+
+        store.SetConfig(await client.GetConfigAsync(cts.Token));
 
         await eventStream.RunAsync(cts.Token);
     });
@@ -39,7 +41,23 @@ try
                 $"{error?.Message ?? "Unknown error"}\n\nRestart the TUI to reconnect.", "Ok"));
     }, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
 
-    Application.Run();
+    // The v1 curses driver throws on escape sequences it can't parse
+    // (e.g. some terminfo variants of End/Home under tmux). Log and resume
+    // instead of letting a stray key kill the TUI.
+    Application.Run(Application.Top, ex =>
+    {
+        try
+        {
+            File.AppendAllText(
+                Path.Combine(Path.GetTempPath(), "commandcentral-tui-errors.log"),
+                $"{DateTime.Now:O} {ex}\n");
+        }
+        catch
+        {
+            // Logging must never make it worse.
+        }
+        return true; // resume the main loop
+    });
 }
 finally
 {

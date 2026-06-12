@@ -13,6 +13,7 @@ public sealed class HeaderView : View
     private readonly string _daemonUrl;
 
     private bool _connected;
+    private string? _leaderKey;
     private string? _pttInstanceId;
     private string? _ttsInstanceId;
     private bool _leaderActive;
@@ -26,9 +27,10 @@ public sealed class HeaderView : View
         ColorScheme = Theme.Canvas;
     }
 
-    public void Update(bool connected, string? pttInstanceId, string? ttsInstanceId, bool leaderActive)
+    public void Update(bool connected, string? pttInstanceId, string? ttsInstanceId, bool leaderActive, string? leaderKey)
     {
         _connected = connected;
+        _leaderKey = leaderKey;
         _pttInstanceId = pttInstanceId;
         _ttsInstanceId = ttsInstanceId;
         _leaderActive = leaderActive;
@@ -52,6 +54,12 @@ public sealed class HeaderView : View
         col = Put(col, "COMMAND CENTRAL", Theme.Bright);
         col = Put(col, "  ", Theme.Text);
         col = Put(col, _daemonUrl, Theme.Dim);
+
+        if (_leaderKey is not null)
+        {
+            col = Put(col, "  ·  leader ", Theme.Dim);
+            col = Put(col, _leaderKey, _leaderActive ? Theme.LeaderBadge : Theme.AccentDim);
+        }
 
         // Right side, composed right-to-left: clock, connection, badges
         var clock = DateTime.Now.ToString(" HH:mm:ss ");

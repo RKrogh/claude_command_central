@@ -15,7 +15,7 @@ public sealed class MainWindow : Toplevel
     private bool _showSettings;
     private int _spinnerFrame;
 
-    public MainWindow(TuiStateStore store, string daemonUrl)
+    public MainWindow(TuiStateStore store, DaemonClient client, string daemonUrl)
     {
         _store = store;
         X = 0;
@@ -67,6 +67,16 @@ public sealed class MainWindow : Toplevel
 
         _agentList.AgentSelected += OnAgentSelected;
 
+        // Settings edits go straight to the daemon; the returned effective
+        // config refreshes the store (and thereby every view).
+        _settings.ApplyEdit = async update =>
+        {
+            var (config, error) = await client.UpdateConfigAsync(update);
+            if (config is not null)
+                _store.SetConfig(config);
+            return error;
+        };
+
         Add(_header, _agentList, _agentDetail, _settings, _statusBar);
 
         KeyPress += OnKeyPress;
@@ -109,6 +119,10 @@ public sealed class MainWindow : Toplevel
                 _showSettings = !_showSettings;
                 _agentDetail.Visible = !_showSettings;
                 _settings.Visible = _showSettings;
+                if (_showSettings)
+                    _settings.SetFocus();
+                else
+                    _agentList.SetFocus();
                 SetNeedsDisplay();
                 args.Handled = true;
                 break;
@@ -130,7 +144,9 @@ public sealed class MainWindow : Toplevel
 
         _agentList.UpdateAgents(agents, _selectedAgentId, _store.SelectedInstanceId, _store.PttInstanceId);
         _agentDetail.UpdateAgent(_selectedAgentId is null ? null : _store.GetAgent(_selectedAgentId));
-        _header.Update(_store.Connected, _store.PttInstanceId, _store.TtsInstanceId, _store.LeaderActive);
+        _header.Update(_store.Connected, _store.PttInstanceId, _store.TtsInstanceId, _store.LeaderActive,
+            _store.Config?.Hotkeys.LeaderKey);
+        _settings.UpdateConfig(_store.Config);
         RenderStatusBar();
     }
 

@@ -26,6 +26,39 @@ public sealed class DaemonClient(string baseUrl = "http://localhost:9000") : IDi
         }
     }
 
+    public async Task<ConfigDto?> GetConfigAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            return await _http.GetFromJsonAsync<ConfigDto>("/api/config", JsonOptions, ct);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Applies a config edit. Returns the updated effective config, or an
+    /// error message from the daemon's validation.
+    /// </summary>
+    public async Task<(ConfigDto? Config, string? Error)> UpdateConfigAsync(ConfigUpdateDto update, CancellationToken ct = default)
+    {
+        try
+        {
+            var response = await _http.PatchAsJsonAsync("/api/config", update, JsonOptions, ct);
+            if (response.IsSuccessStatusCode)
+                return (await response.Content.ReadFromJsonAsync<ConfigDto>(JsonOptions, ct), null);
+
+            var body = await response.Content.ReadAsStringAsync(ct);
+            return (null, $"{(int)response.StatusCode}: {body}");
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException)
+        {
+            return (null, ex.Message);
+        }
+    }
+
     public async Task<bool> IsHealthyAsync(CancellationToken ct = default)
     {
         try

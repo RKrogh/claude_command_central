@@ -31,6 +31,22 @@ public sealed class TuiStateStore(int maxActivityEntries = 100)
     public string? TtsInstanceId { get; private set; }
     public bool LeaderActive { get; private set; }
 
+    /// <summary>Daemon configuration, fetched over GET /api/config.</summary>
+    public ConfigDto? Config { get; private set; }
+
+    public void SetConfig(ConfigDto? config)
+    {
+        if (config is null)
+            return;
+
+        lock (_lock)
+        {
+            Config = config;
+        }
+
+        RaiseChanged();
+    }
+
     public IReadOnlyList<AgentView> GetAgents()
     {
         lock (_lock)
